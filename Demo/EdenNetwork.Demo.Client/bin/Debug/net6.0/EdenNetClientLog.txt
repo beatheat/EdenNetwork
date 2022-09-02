@@ -1,4 +1,0 @@
-[2022-09-02 15:05:42.43|EdenNetServer]Cannot connect to server : SERVER IS FULL
-[2022-09-02 15:05:42.45|EdenNetServer]Connection is closed
-[2022-09-02 15:12:45.96|EdenNetServer]Cannot connect to server : SERVER IS FULL
-[2022-09-02 15:12:45.97|EdenNetServer]Connection is closed
