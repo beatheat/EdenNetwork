@@ -18,15 +18,17 @@ namespace EdenNetwork.Demo.Client
             EdenNetClient client = new EdenNetClient("127.0.0.1", 7777);
 
             ConnectionState cstate = client.Connect();
-
+            //Run program if connection state is ok
             if (cstate == ConnectionState.OK)
             {
                 Console.WriteLine("Connection success");
+                //Register callback method which run after server message received
                 client.AddReceiveEvent("server_msg", (EdenData data) => {
                     Console.WriteLine("Server: " + data.Get<string>());
                 });
 
                 bool quit = false;
+                //main loop
                 while (!quit)
                 {
                     string line = Console.ReadLine();
