@@ -1,3 +1,16 @@
-﻿EdenNetwork/.vs
+﻿
+EdenNetwork/.vs
 EdenNetwork/EdenNetwork/obj
 EdenNetwork/EdenNetwork/bin
+
+Demo/.vs
+Demo/Demo/obj
+Demo/Demo/bin
+
+Demo/.vs
+Demo/EdenNetwork/obj
+Demo/EdenNetwork/bin
+
+**/.vs
+**/bin
+**/obj
