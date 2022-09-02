@@ -3,8 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace EdenNetwork
 {
+    /// <summary>
+    /// Struct : data type for represent single, dictionary, array form 
+    /// </summary>
     public struct EdenData
-
     {
         /// <summary>
         /// Enum Type of EdenData
