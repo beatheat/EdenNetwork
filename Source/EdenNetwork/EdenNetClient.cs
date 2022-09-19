@@ -88,9 +88,6 @@ namespace EdenNetwork
         /// <summary>
         /// Connect to server by IP, port
         /// </summary>
-        /// <param name="IPAddress">IP adress of server</param>
-        /// <param name="port">port number of server</param>
-        /// <param name="logPath">path for write network log</param>
         /// <returns>returns ConnectionState of server[OK, FULL, NOT_LISTENING, ERROR]</returns>
         public ConnectionState Connect()
         {
