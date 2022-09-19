@@ -8,6 +8,6 @@ Simple C# asynchronous TCP socket server&amp;client API for .NET &amp; Unity
 Download nuget package in your visual studio project
 
 ### Documentation
-[documentation](!)
+[documentation](https://github.com/beatheat/EdenNetwork/blob/main/Docs/document.md)
 
 
