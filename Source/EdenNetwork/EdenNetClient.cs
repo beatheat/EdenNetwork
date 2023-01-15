@@ -475,7 +475,8 @@ namespace EdenNetwork
         {
             if (tcpclient != null)
             {
-                stream.Close();
+                if(stream != null)
+                    stream.Close();
                 tcpclient.Close();
             }
             if (log_thread != null)
