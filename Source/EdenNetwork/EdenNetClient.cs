@@ -551,7 +551,6 @@ namespace EdenNetwork
                 else
                 {
                     Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
-                    return;
                 }
             }
             catch (Exception e)
