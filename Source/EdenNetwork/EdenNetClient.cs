@@ -128,6 +128,137 @@ namespace EdenNetwork
             return ConnectionState.OK;
         }
 
+        /// <summary>
+        /// Connect to server asyncronously by IP, port
+        /// </summary>
+        /// <param name="IPAddress">IP adress of server</param>
+        /// <param name="port">port number of server</param>
+        /// <param name="DoAfterConnect">callback method execute after connection success or fail</param>
+        public void ConnectAsync(Action<ConnectionState> DoAfterConnect)
+        {
+            if (tcpclient != null)
+                Close();
+            Task.Run(() =>
+            {
+                server_id = ipv4_address + ":" + port;
+                tcpclient = new TcpClient(AddressFamily.InterNetwork);
+                try
+                {
+                    tcpclient.Connect(ipv4_address, port);
+                    stream = tcpclient.GetStream();
+
+                    byte[] buffer = new byte[128];
+                    stream.Read(buffer);
+                    string server_state = Encoding.UTF8.GetString(buffer);
+
+                    ConnectionState state;
+
+                    if (String.Compare(server_state, "OK") == 0)
+                    {
+                        Log("Connection success");
+                        state = ConnectionState.OK;
+                        stream.BeginRead(read_buffer, 0, read_buffer.Length, ReadBuffer, null);
+                    }
+                    else if (String.Compare(server_state, "NOT LISTENING") == 0)
+                    {
+                        Log("Cannot connect to server : SERVER IS NOT LISTENING");
+                        state = ConnectionState.NOT_LISTENING;
+                    }
+                    else //if(server_state == "FULL")
+                    {
+                        Log("Cannot connect to server : SERVER IS FULL");
+                        state = ConnectionState.FULL;
+                    }
+                    DoAfterConnect(state);
+                }
+                catch
+                {
+                    Log("Cannot connect to server");
+                    DoAfterConnect(ConnectionState.ERROR);
+                }
+            });
+
+        }
+
+        #region Request Methods
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">EdenData structured sending data </param>
+        public bool Request(string tag, Action<EdenData> response, EdenData data)
+        {
+            bool result = Send(tag, data);
+            if(!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+            return result;
+        }
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">object array sending data </param>
+        public bool Request(string tag, Action<EdenData> response, params object[] data)
+        {
+            bool result = Send(tag, data);
+            if (!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+            return result;
+        }
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">dictionary sending data </param>
+        public bool Request(string tag, Action<EdenData> response, Dictionary<string, object> data)
+        {
+            bool result = Send(tag, data);
+            if (!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+            return result;
+        }
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">EdenData structured sending data </param>
+        public void RequestAsync(string tag, Action<EdenData> response, EdenData data)
+        {
+            SendAsync(tag, data);
+            if (!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+        }
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">object array sending data </param>
+        public void RequestAsync(string tag, Action<EdenData> response, params object[] data)
+        {
+            SendAsync(tag, data);
+            if (!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+        }
+        /// <summary>
+        /// Combination of Send and AddReceiveEvent in one time
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">dictionary sending data </param>
+        public void RequestAsync(string tag, Action<EdenData> response, Dictionary<string, object> data)
+        {
+            SendAsync(tag, data);
+            if (!receive_events.ContainsKey(tag))
+                AddReceiveEvent(tag, response);
+        }
+        #endregion
+
+
         #region Send Methods
         /// <summary>
         /// Send data json format to server
@@ -295,6 +426,11 @@ namespace EdenNetwork
         /// </param>
         public void AddReceiveEvent(string tag, Action<EdenData> receive_event)
         {
+            if (receive_events.ContainsKey(tag))
+            {
+                Log("EdenNetClient::AddReceiveEvent - receive event tag already exists");
+                return;
+            }
             receive_events.Add(tag, receive_event);
         }
 
@@ -304,6 +440,11 @@ namespace EdenNetwork
         /// <param name="tag">reactable tag name for packet received</param>
         public void RemoveReceiveEvent(string tag)
         {
+            if (!receive_events.ContainsKey(tag))
+            {
+                Log("EdenNetClient::RemoveReceiveEvent - receive event tag does not exist");
+                return;
+            }
             receive_events.Remove(tag);
         }
 

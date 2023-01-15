@@ -199,6 +199,23 @@ namespace EdenNetwork
         }
 
         /// <summary>
+        /// Forcely disconnect client connection from server
+        /// </summary>
+        /// <param name="client_id">client id</param>
+        public void DisconnectClient(string client_id)
+        {
+            if(disconn_event != null)
+                disconn_event(client_id);
+            if (clients.ContainsKey(client_id))
+            {
+                if (clients[client_id].stream != null)
+                    clients[client_id].stream.Close();
+                if (clients[client_id].tcpclient != null)
+                    clients[client_id].tcpclient.Close();
+            }
+        }
+
+        /// <summary>
         /// Append receive event which response for packet named with specific tag 
         /// </summary>
         /// <param name="tag">reactable tag name for packet received</param>
@@ -209,6 +226,11 @@ namespace EdenNetwork
         /// </param>
         public void AddReceiveEvent(string tag, Action<string, EdenData> receive_event)
         {
+            if(receive_events.ContainsKey(tag))
+            {
+                Log("EdenNetServer::AddReceiveEvent - receive event tag already exists");
+                return;
+            }
             receive_events.Add(tag, receive_event);
         }
 
@@ -218,13 +240,18 @@ namespace EdenNetwork
         /// <param name="tag">reactable tag name for packet received</param>
         public void RemoveReceiveEvent(string tag)
         {
+            if (!receive_events.ContainsKey(tag))
+            {
+                Log("EdenNetServer::RemoveReceiveEvent - receive event tag does not exist");
+                return;
+            }
             receive_events.Remove(tag);
         }
 
         /// <summary>
         /// Append event activates when client connection close
         /// </summary>
-        /// <param name="DoAfterCloentDisconnect">
+        /// <param name="DoAfterClientDisconnect">
         ///     Action for do something after client disconnected <br/>
         ///     arg1 = string client_id
         /// </param>
@@ -840,13 +867,11 @@ namespace EdenNetwork
                 else // Exception for packet tag not registered
                 {
                     Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
-                    return;
                 }
             }
             catch (Exception e) // Exception for not formed packet data
             {
                 Log("Packet data is not JSON-formed on " + eclient.id + "\n" + e.Message);
-                return;
             }
 
             if (stream.CanRead)
