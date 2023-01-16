@@ -42,6 +42,7 @@ namespace EdenNetwork
         private TcpListener server;
         private Dictionary<string, EdenClient> clients;
         private Dictionary<string, Action<string, EdenData>> receive_events;
+        private Dictionary<string, Func<string, EdenData, EdenData>> response_events;
         private bool is_listening;
         private StreamWriter log_stream;
         private Action<string>? accept_event;
@@ -77,6 +78,7 @@ namespace EdenNetwork
             }
             clients = new Dictionary<string, EdenClient>();
             receive_events = new Dictionary<string, Action<string, EdenData>>();
+            response_events = new Dictionary<string, Func<string, EdenData, EdenData>>();
             is_listening = false;
             accept_event = null;
             disconn_event = null;
@@ -216,6 +218,41 @@ namespace EdenNetwork
         }
 
         /// <summary>
+        /// Append response event which response for request message named with specific tag 
+        /// </summary>
+        /// <param name="tag">reactable tag name for packet received</param>
+        /// <param name="response">
+        ///     event that processed by packet received <br/>
+        ///     arg1 = string client_id <br/>
+        ///     arg2 = EdenData data
+        ///     return response data to client
+        /// </param>
+        public void AddResponse(string tag, Func<string, EdenData, EdenData> response)
+        {
+            if (response_events.ContainsKey("*r*" + tag))
+            {
+                Log("EdenNetServer::AddResponse - receive event tag already exists");
+                return;
+            }
+            response_events.Add("*r*" + tag, response);
+        }
+
+        /// <summary>
+        /// Remove response event which response for packet name with specific tag
+        /// </summary>
+        /// <param name="tag">reactable tag name for packet received</param>
+        public void RemoveResponse(string tag)
+        {
+            if (!response_events.ContainsKey("*r*" + tag))
+            {
+                Log("EdenNetServer::RemoveResponse - response tag does not exist");
+                return;
+            }
+            response_events.Remove("*r*" + tag);
+        }
+
+
+        /// <summary>
         /// Append receive event which response for packet named with specific tag 
         /// </summary>
         /// <param name="tag">reactable tag name for packet received</param>
@@ -294,6 +331,7 @@ namespace EdenNetwork
         /// <param name="data">EdenData structured sending data </param>
         public bool Send(string tag, string client_id, EdenData data)
         {
+            if (!clients.ContainsKey(client_id)) return false;
             NetworkStream stream = clients[client_id].stream;
             if (stream.CanWrite)
             {
@@ -854,19 +892,40 @@ namespace EdenNetwork
             {
                 packet = JsonSerializer.Deserialize<EdenPacket>(json_object, new JsonSerializerOptions { IncludeFields = true });
 
-                Action<string, EdenData>? PacketListenEvent;
-                if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
+                if (packet.tag.StartsWith("*r*"))
                 {
-                    packet.data.CastJsonToType();
-                    try { PacketListenEvent(eclient.id, packet.data); }
-                    catch (Exception e) // Exception for every problem in PacketListenEvent
+                    Func<string, EdenData, EdenData>? PacketListenEvent;
+                    if (response_events.TryGetValue(packet.tag, out PacketListenEvent))
                     {
-                        Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                        packet.data.CastJsonToType();
+                        try { SendAsync(packet.tag, eclient.id, PacketListenEvent(eclient.id, packet.data)); }
+                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        {
+                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                        }
+                    }
+                    else // Exception for packet tag not registered
+                    {
+                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
                     }
                 }
-                else // Exception for packet tag not registered
+                else
                 {
-                    Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
+
+                    Action<string, EdenData>? PacketListenEvent;
+                    if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
+                    {
+                        packet.data.CastJsonToType();
+                        try { PacketListenEvent(eclient.id, packet.data); }
+                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        {
+                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                        }
+                    }
+                    else // Exception for packet tag not registered
+                    {
+                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
+                    }
                 }
             }
             catch (Exception e) // Exception for not formed packet data

@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Threading;
 
 
 namespace EdenNetwork
@@ -21,12 +22,14 @@ namespace EdenNetwork
     {
         #region Fields
         private const int BUF_SIZE = 8 * 1024;
+        private const string REQUEST_PREFIX = "*r*";
 
         private TcpClient tcpclient;
         private NetworkStream stream;
         private byte[] read_buffer;
         private string server_id;
         private Dictionary<string, Action<EdenData>> receive_events;
+        private Dictionary<string, EdenData?> response_events;
         private Action<string> disconn_event;
         private StreamWriter log_stream;
         private Thread log_thread;
@@ -44,6 +47,7 @@ namespace EdenNetwork
         public EdenNetClient(string ipv4_address, int port, string log_path = "")
         {
             receive_events = new Dictionary<string, Action<EdenData>>();
+            response_events = new Dictionary<string, EdenData?>();
             read_buffer = new byte[BUF_SIZE];
             log_thread = null;
             log_stream = null;
@@ -180,85 +184,6 @@ namespace EdenNetwork
 
         }
 
-        #region Request Methods
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">EdenData structured sending data </param>
-        public bool Request(string tag, Action<EdenData> response, EdenData data)
-        {
-            bool result = Send(tag, data);
-            if(!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-            return result;
-        }
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">object array sending data </param>
-        public bool Request(string tag, Action<EdenData> response, params object[] data)
-        {
-            bool result = Send(tag, data);
-            if (!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-            return result;
-        }
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">dictionary sending data </param>
-        public bool Request(string tag, Action<EdenData> response, Dictionary<string, object> data)
-        {
-            bool result = Send(tag, data);
-            if (!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-            return result;
-        }
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">EdenData structured sending data </param>
-        public void RequestAsync(string tag, Action<EdenData> response, EdenData data)
-        {
-            SendAsync(tag, data);
-            if (!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-        }
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">object array sending data </param>
-        public void RequestAsync(string tag, Action<EdenData> response, params object[] data)
-        {
-            SendAsync(tag, data);
-            if (!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-        }
-        /// <summary>
-        /// Combination of Send and AddReceiveEvent in one time
-        /// </summary>
-        /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">dictionary sending data </param>
-        public void RequestAsync(string tag, Action<EdenData> response, Dictionary<string, object> data)
-        {
-            SendAsync(tag, data);
-            if (!receive_events.ContainsKey(tag))
-                AddReceiveEvent(tag, response);
-        }
-        #endregion
-
-
         #region Send Methods
         /// <summary>
         /// Send data json format to server
@@ -327,9 +252,6 @@ namespace EdenNetwork
             else
                 return Send(tag, new EdenData(data));
         }
-        #endregion
-
-        #region SendAsync Methods
         /// <summary>
         /// Send data asynchronously json format to server
         /// </summary>
@@ -414,6 +336,139 @@ namespace EdenNetwork
             else
                 SendAsync(tag, new EdenData(data));
         }
+        #endregion
+
+        #region Request Methods
+        /// <summary>
+        /// Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">EdenData structured sending data </param>
+        /// <param name="timeout">timeout for response from server
+        /// </param>
+        public EdenData Request(string tag, int timeout, EdenData data)
+        {
+            tag = REQUEST_PREFIX + tag;
+            if (!response_events.ContainsKey(tag))
+                response_events.Add(tag, null);
+            bool result = Send(tag, data);
+            if (result == false) return new EdenData(new EdenError("ERR:Send Failed"));
+            double time = 0;
+            EdenData? rdata;
+            do
+            {
+                Thread.Sleep(100);
+                time += 0.1;
+
+                if (response_events.TryGetValue(tag, out rdata) && rdata != null)
+                    break;
+
+            } while (timeout > time);
+            response_events.Remove(tag);
+            if (timeout <= time) return new EdenData(new EdenError("ERR:Timeout"));
+            else return rdata.Value;
+        }
+
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data </param>
+        /// <param name="timeout">timeout for response from server
+        public EdenData Request(string tag, int timeout, params object[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                return Request(tag, timeout, new EdenData());
+            }
+            else if (data.Length == 1)
+            {
+                return Request(tag, timeout, new EdenData(data[0]));
+            }
+            else
+                return Request(tag, timeout, new EdenData(data));
+        }
+
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">Dictionary sending data </param>
+        /// <param name="timeout">timeout for response from server
+        public EdenData Request(string tag, int timeout, Dictionary<string, object> data)
+        {
+            if (data == null)
+                return Request(tag, timeout, new EdenData(data));
+            else
+                return Request(tag, timeout, new EdenData());
+        }
+
+        /// <summary>
+        /// Request any data to server asynchronously and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">EdenData structured sending data </param>
+        public void RequestAsync(string tag, int timeout, Action<EdenData> response, EdenData data)
+        {
+            tag = REQUEST_PREFIX + tag;
+            if (!response_events.ContainsKey(tag))
+                response_events.Add(tag, null);
+            SendAsync(tag, data);
+            Task.Run(() =>
+            {
+                double time = 0;
+                EdenData? rdata;
+                do
+                {
+                    Thread.Sleep(100);
+                    time += 0.1;
+
+                    if (response_events.TryGetValue(tag, out rdata) && rdata != null)
+                        break;
+                } while (timeout > time);
+
+                response_events.Remove(tag);
+                if (timeout <= time) response(new EdenData(new EdenError("ERR:Timeout")));
+                else response(rdata.Value);
+            });
+        }
+
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data </param>
+        /// <param name="timeout">timeout for response from server
+        public void RequestAsync(string tag, int timeout, Action<EdenData> response, params object[] data)
+        {
+            if (data == null || data.Length == 0)
+            {
+                RequestAsync(tag, timeout, response, new EdenData());
+            }
+            else if (data.Length == 1)
+            {
+                RequestAsync(tag, timeout, response, new EdenData(data[0]));
+            }
+            else
+                RequestAsync(tag, timeout, response, new EdenData(data));
+        }
+
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">Dictionary sending data </param>
+        /// <param name="timeout">timeout for response from server
+        public void RequestAsync(string tag, int timeout, Action<EdenData> response, Dictionary<string, object> data)
+        {
+            if (data == null)
+                RequestAsync(tag, timeout, response, new EdenData());
+            else 
+                RequestAsync(tag, timeout, response, new EdenData(data));
+
+        }
+
         #endregion
 
         /// <summary>
@@ -537,22 +592,38 @@ namespace EdenNetwork
             {
                 packet = JsonSerializer.Deserialize<EdenPacket>(json_string, new JsonSerializerOptions { IncludeFields = true });
 
-                Action<EdenData> PacketListenEvent;
                 packet.data.CastJsonToType();
 
-                if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
+                if(packet.tag.StartsWith(REQUEST_PREFIX))
                 {
-                    packet.data.CastJsonToType();
-                    try { PacketListenEvent(packet.data); }
-                    catch (Exception e) // Exception for every problem in PacketListenEvent
+                    if(response_events.ContainsKey(packet.tag))
                     {
-                        Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + server_id + "\n" + e.Message);
+                        response_events[packet.tag] = packet.data;
+                    }
+                    else
+                    {
+                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
                     }
                 }
                 else
                 {
-                    Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
+                    Action<EdenData> PacketListenEvent;
+                    if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
+                    {
+                        packet.data.CastJsonToType();
+                        try { PacketListenEvent(packet.data); }
+                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        {
+                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + server_id + "\n" + e.Message);
+                        }
+                    }
+                    else
+                    {
+                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
+                    }
                 }
+
+
             }
             catch (Exception e)
             {

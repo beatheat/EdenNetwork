@@ -3,6 +3,16 @@ using System.Text.Json.Serialization;
 
 namespace EdenNetwork
 {
+
+    public struct EdenError
+    {
+        public string text;
+        public EdenError(string text)
+        {
+            this.text = text;
+        }
+    }
+
     /// <summary>
     /// Struct : data type for represent single, dictionary, array form 
     /// </summary>
@@ -11,7 +21,7 @@ namespace EdenNetwork
         /// <summary>
         /// Enum Type of EdenData
         /// </summary>
-        public enum Type { SINGLE, ARRAY, DICTIONARY }
+        public enum Type { SINGLE, ARRAY, DICTIONARY, ERROR }
         public Type type;
         public object? data;
 
@@ -25,6 +35,13 @@ namespace EdenNetwork
             this.data = null;
             type = Type.SINGLE;
         }
+
+        public EdenData(EdenError error)
+        {
+            this.data = error;
+            type = Type.ERROR;
+        }
+
         /// <summary>
         /// Initialize structure by single data
         /// </summary>
@@ -36,7 +53,7 @@ namespace EdenNetwork
         /// <summary>
         /// Initialize structure by object array
         /// </summary>
-        public EdenData(object[] data)
+        public EdenData(params object[] data)
         {
             this.data = data;
             type = Type.ARRAY;
@@ -64,6 +81,17 @@ namespace EdenNetwork
                 dict_data = ParseData<Dictionary<string, object>>(data);
             }
         }
+
+        public string GetError()
+        {
+            if(type == Type.ERROR)
+            {
+                EdenError err = (EdenError)data;
+                return err.text; 
+            }
+            return "";
+        }
+
         /// <summary>
         /// Get single data
         /// </summary>
@@ -140,4 +168,5 @@ namespace EdenNetwork
         public string tag;
         public EdenData data;
     }
+
 }
