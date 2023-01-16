@@ -34,6 +34,10 @@ namespace EdenNetwork.Demo.Server
             server.AddReceiveEvent("client_msg", (string client_id, EdenData data) => {
                 Console.WriteLine("Client: " + data.Get<string>());
             });
+            server.AddResponse("response_test", (string client_id, EdenData data) =>
+            {
+                return data;
+            });
 
             bool quit = false;
             //main loop

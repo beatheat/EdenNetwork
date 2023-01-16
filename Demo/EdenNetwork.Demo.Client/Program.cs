@@ -26,7 +26,10 @@ namespace EdenNetwork.Demo.Client
                 client.AddReceiveEvent("server_msg", (EdenData data) => {
                     Console.WriteLine("Server: " + data.Get<string>());
                 });
-
+                client.RequestAsync("response_test", 10,(EdenData data) => {
+                    Console.WriteLine(data.Get<string>());
+                    
+                }, "123");
                 bool quit = false;
                 //main loop
                 while (!quit)
