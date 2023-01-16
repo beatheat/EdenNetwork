@@ -4,6 +4,9 @@ using System.Text.Json.Serialization;
 namespace EdenNetwork
 {
 
+    /// <summary>
+    /// Struct : data type for respresent error
+    /// </summary>
     public struct EdenError
     {
         public string text;

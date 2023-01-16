@@ -211,6 +211,7 @@ namespace EdenNetwork
                 stream.BeginWrite(send_obj, 0, send_obj.Length, (IAsyncResult ar) =>
                 {
                     LogAsync((string)ar.AsyncState);
+                    stream.EndWrite(ar);
                 }, server_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
                 return true;
             }
@@ -581,55 +582,61 @@ namespace EdenNetwork
                 return;
             }
 
-            int length = BitConverter.ToInt32(new ArraySegment<byte>(read_buffer, 0, 4));
-            byte[] json_object = (new ArraySegment<byte>(read_buffer, 4, length)).ToArray();
-            string json_string = Encoding.UTF8.GetString(json_object);
-
-            LogAsync(server_id + " ==> " + "Json Obj : " + "Packet Len : " + length.ToString() + " | " + json_string);
-
-            EdenPacket packet;
-            try
+            int byte_pointer = 0;
+            int packet_length = 0;
+            while (true)
             {
-                packet = JsonSerializer.Deserialize<EdenPacket>(json_string, new JsonSerializerOptions { IncludeFields = true });
+                packet_length = BitConverter.ToInt32(new ArraySegment<byte>(read_buffer, byte_pointer, 4));
+                if (packet_length <= 0)
+                    break;
+                byte[] json_object = (new ArraySegment<byte>(read_buffer, 4, packet_length)).ToArray();
+                byte_pointer += packet_length + 4;
 
-                packet.data.CastJsonToType();
+                LogAsync(server_id + " ==> " + "Json Obj : " + "Packet Len : " + packet_length.ToString() + " | " + Encoding.UTF8.GetString(json_object));
 
-                if(packet.tag.StartsWith(REQUEST_PREFIX))
+                EdenPacket packet;
+                try
                 {
-                    if(response_events.ContainsKey(packet.tag))
+                    packet = JsonSerializer.Deserialize<EdenPacket>(json_object, new JsonSerializerOptions { IncludeFields = true });
+
+                    packet.data.CastJsonToType();
+
+                    if (packet.tag.StartsWith(REQUEST_PREFIX))
                     {
-                        response_events[packet.tag] = packet.data;
-                    }
-                    else
-                    {
-                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
-                    }
-                }
-                else
-                {
-                    Action<EdenData> PacketListenEvent;
-                    if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
-                    {
-                        packet.data.CastJsonToType();
-                        try { PacketListenEvent(packet.data); }
-                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        if (response_events.ContainsKey(packet.tag))
                         {
-                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + server_id + "\n" + e.Message);
+                            response_events[packet.tag] = packet.data;
+                        }
+                        else
+                        {
+                            Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
                         }
                     }
                     else
                     {
-                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
+                        Action<EdenData> PacketListenEvent;
+                        if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
+                        {
+                            packet.data.CastJsonToType();
+                            try { PacketListenEvent(packet.data); }
+                            catch (Exception e) // Exception for every problem in PacketListenEvent
+                            {
+                                Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + server_id + "\n" + e.Message);
+                            }
+                        }
+                        else
+                        {
+                            Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + server_id);
+                        }
                     }
+
+
                 }
-
-
+                catch (Exception e)
+                {
+                    Log("Packet data is not JSON-formed on " + server_id + "\n" + e.Message);
+                }
             }
-            catch (Exception e)
-            {
-                Log("Packet data is not JSON-formed on " + server_id + "\n" + e.Message);
-            }
-
             if (stream.CanRead)
                 stream.BeginRead(read_buffer, 0, read_buffer.Length, ReadBuffer, null);
             else

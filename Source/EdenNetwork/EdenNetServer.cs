@@ -354,6 +354,7 @@ namespace EdenNetwork
 #pragma warning disable CS8600, CS8604
                     //ar.AsyncState cannot be null
                     LogAsync((string)ar.AsyncState);
+                    stream.EndWrite(ar);
 #pragma warning restore CS8600, CS8604
                 }, client_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
                 return true;
@@ -882,56 +883,67 @@ namespace EdenNetwork
                 return;
             }
 
-            int length = BitConverter.ToInt32(new ArraySegment<byte>(eclient.read_buffer, 0, 4));
-            byte[] json_object = (new ArraySegment<byte>(eclient.read_buffer, 4, length).ToArray());
-
-            LogAsync(eclient.id + "  ==> Packet Len : " + length.ToString() + " | Json Obj : " + Encoding.UTF8.GetString(json_object));
-
-            EdenPacket packet;
-            try
+            int byte_pointer = 0;
+            int packet_length = 0;
+            while(true)
             {
-                packet = JsonSerializer.Deserialize<EdenPacket>(json_object, new JsonSerializerOptions { IncludeFields = true });
+                packet_length = BitConverter.ToInt32(new ArraySegment<byte>(eclient.read_buffer, byte_pointer, 4));
+                if (packet_length <= 0) 
+                    break;
+                byte[] json_object = (new ArraySegment<byte>(eclient.read_buffer, 4, packet_length).ToArray());
+                byte_pointer += packet_length + 4;
 
-                if (packet.tag.StartsWith("*r*"))
+                LogAsync(eclient.id + "  ==> Packet Len : " + packet_length.ToString() + " | Json Obj : " + Encoding.UTF8.GetString(json_object));
+
+                EdenPacket packet;
+                try
                 {
-                    Func<string, EdenData, EdenData>? PacketListenEvent;
-                    if (response_events.TryGetValue(packet.tag, out PacketListenEvent))
+                    packet = JsonSerializer.Deserialize<EdenPacket>(json_object, new JsonSerializerOptions { IncludeFields = true });
+
+                    if (packet.tag.StartsWith("*r*"))
                     {
-                        packet.data.CastJsonToType();
-                        try { SendAsync(packet.tag, eclient.id, PacketListenEvent(eclient.id, packet.data)); }
-                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        Func<string, EdenData, EdenData>? PacketListenEvent;
+                        if (response_events.TryGetValue(packet.tag, out PacketListenEvent))
                         {
-                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                            packet.data.CastJsonToType();
+                            try { SendAsync(packet.tag, eclient.id, PacketListenEvent(eclient.id, packet.data)); }
+                            catch (Exception e) // Exception for every problem in PacketListenEvent
+                            {
+                                Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                            }
+                        }
+                        else // Exception for packet tag not registered
+                        {
+                            Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
                         }
                     }
-                    else // Exception for packet tag not registered
+                    else
                     {
-                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
-                    }
-                }
-                else
-                {
 
-                    Action<string, EdenData>? PacketListenEvent;
-                    if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
-                    {
-                        packet.data.CastJsonToType();
-                        try { PacketListenEvent(eclient.id, packet.data); }
-                        catch (Exception e) // Exception for every problem in PacketListenEvent
+                        Action<string, EdenData>? PacketListenEvent;
+                        if (receive_events.TryGetValue(packet.tag, out PacketListenEvent))
                         {
-                            Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                            packet.data.CastJsonToType();
+                            try { PacketListenEvent(eclient.id, packet.data); }
+                            catch (Exception e) // Exception for every problem in PacketListenEvent
+                            {
+                                Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                            }
+                        }
+                        else // Exception for packet tag not registered
+                        {
+                            Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
                         }
                     }
-                    else // Exception for packet tag not registered
-                    {
-                        Log("EdenNet-Error::There is no packet tag <" + packet.tag + "> from " + eclient.id);
-                    }
                 }
-            }
-            catch (Exception e) // Exception for not formed packet data
-            {
-                Log("Packet data is not JSON-formed on " + eclient.id + "\n" + e.Message);
-            }
+                catch (Exception e) // Exception for not formed packet data
+                {
+                    Log("Packet data is not JSON-formed on " + eclient.id + "\n" + e.Message);
+                }
+            } 
+
+
+
 
             if (stream.CanRead)
                 stream.BeginRead(eclient.read_buffer, 0, eclient.read_buffer.Length, ReadBuffer, eclient);
