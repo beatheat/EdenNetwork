@@ -584,13 +584,12 @@ namespace EdenNetwork
 
             int byte_pointer = 0;
             int packet_length = 0;
-            while (true)
+            while (byte_pointer < numberofbytes)
             {
                 packet_length = BitConverter.ToInt32(new ArraySegment<byte>(read_buffer, byte_pointer, 4));
-                if (packet_length <= 0)
-                    break;
-                byte[] json_object = (new ArraySegment<byte>(read_buffer, 4, packet_length)).ToArray();
-                byte_pointer += packet_length + 4;
+                byte_pointer += 4;
+                byte[] json_object = (new ArraySegment<byte>(read_buffer, byte_pointer, packet_length)).ToArray();
+                byte_pointer += packet_length;
 
                 LogAsync(server_id + " ==> " + "Json Obj : " + "Packet Len : " + packet_length.ToString() + " | " + Encoding.UTF8.GetString(json_object));
 

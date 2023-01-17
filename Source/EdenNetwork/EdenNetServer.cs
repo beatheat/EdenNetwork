@@ -353,7 +353,7 @@ namespace EdenNetwork
                 {
 #pragma warning disable CS8600, CS8604
                     //ar.AsyncState cannot be null
-                    LogAsync((string)ar.AsyncState);
+                    Log((string)ar.AsyncState);
                     stream.EndWrite(ar);
 #pragma warning restore CS8600, CS8604
                 }, client_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
@@ -885,15 +885,14 @@ namespace EdenNetwork
 
             int byte_pointer = 0;
             int packet_length = 0;
-            while(true)
+            while(byte_pointer < numberofbytes)
             {
-                packet_length = BitConverter.ToInt32(new ArraySegment<byte>(eclient.read_buffer, byte_pointer, 4));
-                if (packet_length <= 0) 
-                    break;
-                byte[] json_object = (new ArraySegment<byte>(eclient.read_buffer, 4, packet_length).ToArray());
-                byte_pointer += packet_length + 4;
+                packet_length = BitConverter.ToInt32(new ArraySegment<byte>(eclient.read_buffer, byte_pointer , 4));
+                byte_pointer += 4;
+                byte[] json_object = (new ArraySegment<byte>(eclient.read_buffer, byte_pointer, packet_length).ToArray());
+                byte_pointer += packet_length;
 
-                LogAsync(eclient.id + "  ==> Packet Len : " + packet_length.ToString() + " | Json Obj : " + Encoding.UTF8.GetString(json_object));
+                Log(eclient.id + "  ==> Packet Len : " + packet_length.ToString() + " | Json Obj : " + Encoding.UTF8.GetString(json_object));
 
                 EdenPacket packet;
                 try
@@ -940,16 +939,25 @@ namespace EdenNetwork
                 {
                     Log("Packet data is not JSON-formed on " + eclient.id + "\n" + e.Message);
                 }
-            } 
+            }
 
 
 
-
-            if (stream.CanRead)
-                stream.BeginRead(eclient.read_buffer, 0, eclient.read_buffer.Length, ReadBuffer, eclient);
-            else // Exception for network stream read is not ready
+            lock (stream)
             {
-                Log("NetworkStream cannot read on client_id : " + eclient.id);
+                try
+                {
+                    if (stream.CanRead)
+                        stream.BeginRead(eclient.read_buffer, 0, eclient.read_buffer.Length, ReadBuffer, eclient);
+                    else // Exception for network stream read is not ready
+                    {
+                        Log("NetworkStream cannot read on client_id : " + eclient.id);
+                    }
+                }
+                catch(Exception e)
+                {
+                    Log(e.Message);
+                }
             }
         }
 
@@ -963,13 +971,13 @@ namespace EdenNetwork
             }
         }
 
-        private void LogAsync(string log)
+        private async void LogAsync(string log)
         {
             if (print_log)
             {
                 log = "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ff") + "|EdenNetServer]" + log;
                 Console.WriteLine(log);
-                log_stream.WriteLineAsync(log);
+                await log_stream.WriteLineAsync(log);
             }
         }
 
