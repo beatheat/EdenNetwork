@@ -306,6 +306,14 @@ namespace EdenNetwork
         }
 
         /// <summary>
+        /// Check whether client is connected
+        /// </summary>
+        public bool StillConnected(string client_id)
+        {
+            return clients.ContainsKey(client_id);
+        }
+
+        /// <summary>
         /// Close server and release 
         /// </summary>
         public void Close()
@@ -794,7 +802,7 @@ namespace EdenNetwork
                     log = remoteEndPoint.ToString() + " is rejected by SERVER NOT LISTENING STATE";
                     client.GetStream().Write(Encoding.UTF8.GetBytes("NOT LISTENING"));
                 }
-                else if (clients.Count > max_accept_num)
+                else if (max_accept_num != INF_CLIENT_ACCEPT && clients.Count > max_accept_num)
                 {
                     log = remoteEndPoint.ToString() + " is rejected by SERVER FULL STATE";
                     client.GetStream().Write(Encoding.UTF8.GetBytes("FULL"));

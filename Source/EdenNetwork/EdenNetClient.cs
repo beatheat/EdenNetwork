@@ -111,11 +111,15 @@ namespace EdenNetwork
                 else if (String.Compare(server_state, "NOT LISTENING") == 0)
                 {
                     Log("Cannot connect to server : SERVER IS NOT LISTENING");
+                    stream.Close();
+                    tcpclient.Close();
                     return ConnectionState.NOT_LISTENING;
                 }
                 else //if(server_state == "FULL")
                 {
                     Log("Cannot connect to server : SERVER IS FULL");
+                    stream.Close();
+                    tcpclient.Close();
                     return ConnectionState.FULL;
                 }
             }
@@ -167,11 +171,15 @@ namespace EdenNetwork
                     {
                         Log("Cannot connect to server : SERVER IS NOT LISTENING");
                         state = ConnectionState.NOT_LISTENING;
+                        stream.Close();
+                        tcpclient.Close();
                     }
                     else //if(server_state == "FULL")
                     {
                         Log("Cannot connect to server : SERVER IS FULL");
                         state = ConnectionState.FULL;
+                        stream.Close();
+                        tcpclient.Close();
                     }
                     DoAfterConnect(state);
                 }
