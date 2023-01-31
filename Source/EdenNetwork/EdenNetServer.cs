@@ -38,6 +38,11 @@ namespace EdenNetwork
         /// Constant : size of read buffer for each client
         /// </summary>
         private const int BUF_SIZE = 8 * 1024;
+        /// <summary>
+        /// Constant : constant for receive request packet
+        /// </summary>
+        private const string REQUEST_PREFIX = "*r*";
+
 
         private TcpListener server;
         private Dictionary<string, EdenClient> clients;
@@ -50,6 +55,8 @@ namespace EdenNetwork
         private int max_accept_num;
         private bool print_log;
         private Thread log_thread;
+
+        public int ClientNum { get { return clients.Count; } }
 
         #endregion
 
@@ -162,7 +169,7 @@ namespace EdenNetwork
             var ip_info = (IPEndPoint)server.LocalEndpoint;
             accept_event = DoAfterClientAccept;
             server.BeginAcceptTcpClient(Listening, null);
-
+            
             Log("Eden Server is listening on  " + ip_info.ToString());
         }
         /// <summary>
@@ -229,12 +236,12 @@ namespace EdenNetwork
         /// </param>
         public void AddResponse(string tag, Func<string, EdenData, EdenData> response)
         {
-            if (response_events.ContainsKey("*r*" + tag))
+            if (response_events.ContainsKey(REQUEST_PREFIX + tag))
             {
                 Log("EdenNetServer::AddResponse - receive event tag already exists");
                 return;
             }
-            response_events.Add("*r*" + tag, response);
+            response_events.Add(REQUEST_PREFIX + tag, response);
         }
 
         /// <summary>
@@ -243,12 +250,12 @@ namespace EdenNetwork
         /// <param name="tag">reactable tag name for packet received</param>
         public void RemoveResponse(string tag)
         {
-            if (!response_events.ContainsKey("*r*" + tag))
+            if (!response_events.ContainsKey(REQUEST_PREFIX + tag))
             {
                 Log("EdenNetServer::RemoveResponse - response tag does not exist");
                 return;
             }
-            response_events.Remove("*r*" + tag);
+            response_events.Remove(REQUEST_PREFIX + tag);
         }
 
 
@@ -347,6 +354,7 @@ namespace EdenNetwork
                 packet.tag = tag;
                 packet.data = data;
 
+
                 string json_packet = JsonSerializer.Serialize(packet, new JsonSerializerOptions { IncludeFields = true });
                 byte[] bytes = Encoding.UTF8.GetBytes(json_packet);
                 byte[] send_obj = BitConverter.GetBytes(bytes.Length);
@@ -357,14 +365,8 @@ namespace EdenNetwork
                     return false;
                 }
                 // Begin sending packet
-                stream.BeginWrite(send_obj, 0, send_obj.Length, (IAsyncResult ar) =>
-                {
-#pragma warning disable CS8600, CS8604
-                    //ar.AsyncState cannot be null
-                    Log((string)ar.AsyncState);
-                    stream.EndWrite(ar);
-#pragma warning restore CS8600, CS8604
-                }, client_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
+                stream.Write(send_obj, 0, send_obj.Length);
+                Log(client_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
                 return true;
             }
             else // Exception for network stream write is not ready
@@ -506,11 +508,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for send</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">EdenData structured sending data</param>
-        public void SendAsync(string tag, string client_id, Action<bool, object> callback, object state, EdenData data)
+        public void BeginSend(string tag, string client_id, Action<bool> callback, EdenData data)
         {
-            Task.Run(() => callback(Send(tag, client_id, data), state));
+            Task.Run(() => callback(Send(tag, client_id, data)));
         }
         /// <summary>
         /// Send data asynchronously json format to specific client
@@ -518,20 +519,19 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for send</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">object array sending data</param>
-        public void SendAsync(string tag, string client_id, Action<bool, object> callback, object state, params object[] data)
+        public void BeginSend(string tag, string client_id, Action<bool> callback, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                SendAsync(tag, client_id, callback, state, new EdenData());
+                BeginSend(tag, client_id, callback, new EdenData());
             }
             else if (data.Length == 1)
             {
-                SendAsync(tag, client_id, callback, state, new EdenData(data[0]));
+                BeginSend(tag, client_id, callback, new EdenData(data[0]));
             }
             else
-                SendAsync(tag, client_id, callback, state, new EdenData(data));
+                BeginSend(tag, client_id, callback, new EdenData(data));
         }
         /// <summary>
         /// Send data asynchronously json format to specific client
@@ -541,22 +541,53 @@ namespace EdenNetwork
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
         /// <param name="state">parameter for callback function</param>
         /// <param name="data">dictionary array sending data</param>
-        public void SendAsync(string tag, string client_id, Action<bool, object> callback, object state, Dictionary<string, object> data)
+        public void BeginSend(string tag, string client_id, Action<bool> callback, Dictionary<string, object> data)
         {
             if (data == null)
-                SendAsync(tag, client_id, callback, state, new EdenData());
+                BeginSend(tag, client_id, callback, new EdenData());
             else
-                SendAsync(tag, client_id, callback, state, new EdenData(data));
+                BeginSend(tag, client_id, callback, new EdenData(data));
         }
+
         /// <summary>
         /// Send data asynchronously json format to specific client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for send</param>
         /// <param name="data">sending data</param>
-        public void SendAsync(string tag, string client_id, EdenData data)
+        public async Task<bool> SendAsync(string tag, string client_id, EdenData data)
         {
-            Task.Run(() => Send(tag, client_id, data));
+            return await Task.Run(async () =>
+            {
+                if (!clients.ContainsKey(client_id)) return false;
+                NetworkStream stream = clients[client_id].stream;
+                if (stream.CanWrite)
+                {
+                    EdenPacket packet = new EdenPacket();
+                    packet.tag = tag;
+                    packet.data = data;
+
+
+                    string json_packet = JsonSerializer.Serialize(packet, new JsonSerializerOptions { IncludeFields = true });
+                    byte[] bytes = Encoding.UTF8.GetBytes(json_packet);
+                    byte[] send_obj = BitConverter.GetBytes(bytes.Length);
+                    send_obj = send_obj.Concat(bytes).ToArray();
+                    if (send_obj.Length >= BUF_SIZE) // Exception for too big data size
+                    {
+                        Log("Too big data to send, EdenNetProtocol support data size below " + BUF_SIZE);
+                        return false;
+                    }
+                    // Begin sending packet
+                    await stream.WriteAsync(send_obj, 0, send_obj.Length);
+                    Log(client_id + " <==  Packet Len : " + bytes.Length.ToString() + " | Json Obj : " + json_packet);
+                    return true;
+                }
+                else // Exception for network stream write is not ready
+                {
+                    Log("NetworkStream cannot write on client_id : " + clients[client_id].id);
+                    return false;
+                }
+            });
         }
         /// <summary>
         /// Send data asynchronously json format to specific client
@@ -564,18 +595,18 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for send</param>
         /// <param name="data">object array sending data</param>
-        public void SendAsync(string tag, string client_id, params object[] data)
+        public async Task<bool> SendAsync(string tag, string client_id, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                SendAsync(tag, client_id, new EdenData());
+                return await SendAsync(tag, client_id, new EdenData());
             }
             else if (data.Length == 1)
             {
-                SendAsync(tag, client_id, new EdenData(data[0]));
+                return await SendAsync(tag, client_id, new EdenData(data[0]));
             }
             else
-                SendAsync(tag, client_id, new EdenData(data));
+                return await SendAsync(tag, client_id, new EdenData(data));
         }
         /// <summary>
         /// Send data asynchronously json format to specific client
@@ -583,97 +614,114 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for send</param>
         /// <param name="data">dictionary sending data</param>
-        public void SendAsync(string tag, string client_id, Dictionary<string, object> data)
+        public async Task<bool> SendAsync(string tag, string client_id, Dictionary<string, object> data)
         {
             if (data == null)
-                SendAsync(tag, client_id, new EdenData());
+                return await SendAsync(tag, client_id, new EdenData());
             else
-                SendAsync(tag, client_id, new EdenData(data));
+                return await SendAsync(tag, client_id, new EdenData(data));
         }
+
+
+        //============================================================================
 
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">sending data</param>
-        public void BroadcastAsync(string tag, Action<bool, object> callback, object state, EdenData data)
+        public void BeginBroadcast(string tag, Action<bool> callback, EdenData data)
         {
-            Task.Run(() => callback(Broadcast(tag, data), state));
+            Task.Run(() => callback(Broadcast(tag, data)));
         }
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">object array sending data</param>
-        public void BroadcastAsync(string tag, Action<bool, object> callback, object state, params object[] data)
+        public void BeginBroadcast(string tag, Action<bool> callback, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                BroadcastAsync(tag, callback, state, new EdenData());
+                BeginBroadcast(tag, callback, new EdenData());
             }
             else if (data.Length == 1)
             {
-                BroadcastAsync(tag, callback, state, new EdenData(data[0]));
+                BeginBroadcast(tag, callback, new EdenData(data[0]));
             }
             else
-                BroadcastAsync(tag, callback, state, new EdenData(data));
+                BeginBroadcast(tag, callback, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">dictionary sending data</param>
-        public void BroadcastAsync(string tag, Action<bool, object> callback, object state, Dictionary<string, object> data)
+        public void BeginBroadcast(string tag, Action<bool> callback, Dictionary<string, object> data)
         {
             if (data == null)
-                BroadcastAsync(tag, callback, state, new EdenData());
+                BeginBroadcast(tag, callback, new EdenData());
             else
-                BroadcastAsync(tag, callback, state, new EdenData(data));
+                BeginBroadcast(tag, callback, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">sending data</param>
-        public void BroadcastAsync(string tag, EdenData data)
+        public async Task<bool> BroadcastAsync(string tag, EdenData data)
         {
-            Task.Run(() => Broadcast(tag, data));
+            return await Task.Run(async () =>
+            {
+                List<Task<bool>> tasks = new List<Task<bool>>();
+                foreach (var client in clients.Values)
+                {
+                    var task = Task<bool>.Run(async () =>
+                    {
+                        return await SendAsync(tag, client.id, data);
+                    });
+                    tasks.Add(task);
+                }
+                bool success = true;
+                foreach(var task in tasks)
+                {
+                    success = success && (await task);
+                }
+                return success;
+            });
         }
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">object array sending data</param>
-        public void BroadcastAsync(string tag, params object[] data)
+        public async Task<bool> BroadcastAsync(string tag, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                BroadcastAsync(tag, new EdenData());
+                return await BroadcastAsync(tag, new EdenData());
             }
             else if (data.Length == 1)
             {
-                BroadcastAsync(tag, new EdenData(data[0]));
+                return await BroadcastAsync(tag, new EdenData(data[0]));
             }
             else
-                BroadcastAsync(tag, new EdenData(data));
+                return await BroadcastAsync(tag, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data asynchronously to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">dictionary sending data</param>
-        public void BroadcastAsync(string tag, Dictionary<string, object> data)
+        public async Task<bool> BroadcastAsync(string tag, Dictionary<string, object> data)
         {
             if (data == null)
-                BroadcastAsync(tag, new EdenData());
+                return await BroadcastAsync(tag, new EdenData());
             else
-                BroadcastAsync(tag, new EdenData(data));
+                return await BroadcastAsync(tag, new EdenData(data));
         }
 
         /// <summary>
@@ -682,11 +730,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">EdenData structured sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, Action<bool, object> callback, object state, EdenData data)
+        public void BeginBraodcastExcept(string tag, string client_id, Action<bool> callback, EdenData data)
         {
-            Task.Run(() => callback(BroadcastExcept(tag, client_id, data), state));
+            Task.Run(() => callback(BroadcastExcept(tag, client_id, data)));
         }
         /// <summary>
         /// Broadcast data to all connected client
@@ -694,20 +741,19 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">object array sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, Action<bool, object> callback, object state, params object[] data)
+        public void BeginBraodcastExcept(string tag, string client_id, Action<bool> callback, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                BroadcastExceptAsync(tag, client_id, callback, state, new EdenData());
+                BeginBraodcastExcept(tag, client_id, callback, new EdenData());
             }
             else if (data.Length == 1)
             {
-                BroadcastExceptAsync(tag, client_id, callback, state, new EdenData(data[0]));
+                BeginBraodcastExcept(tag, client_id, callback, new EdenData(data[0]));
             }
             else
-                BroadcastExceptAsync(tag, client_id, callback, state, new EdenData(data));
+                BeginBraodcastExcept(tag, client_id, callback, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data to all connected client
@@ -715,14 +761,13 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="callback">callback function[bool success, object state] run after data send</param>
-        /// <param name="state">parameter for callback function</param>
         /// <param name="data">dictionary sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, Action<bool, object> callback, object state, Dictionary<string, object> data)
+        public void BeginBraodcastExcept(string tag, string client_id, Action<bool> callback, Dictionary<string, object> data)
         {
             if (data == null)
-                BroadcastExceptAsync(tag, client_id, callback, state, new EdenData());
+                BeginBraodcastExcept(tag, client_id, callback, new EdenData());
             else
-                BroadcastExceptAsync(tag, client_id, callback, state, new EdenData(data));
+                BeginBraodcastExcept(tag, client_id, callback, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data to all connected client except specific client
@@ -730,9 +775,27 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="data">EdenData structured sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, EdenData data)
+        public async Task<bool> BroadcastExceptAsync(string tag, string client_id, EdenData data)
         {
-            Task.Run(() => BroadcastExcept(tag, client_id, data));
+            return await Task.Run(async () =>
+            {
+                List<Task<bool>> tasks = new List<Task<bool>>();
+                foreach (var client in clients.Values)
+                {
+                    if (client.id == client_id) continue;
+                    var task = Task<bool>.Run(async () =>
+                    {
+                        return await SendAsync(tag, client.id, data);
+                    });
+                    tasks.Add(task);
+                }
+                bool success = true;
+                foreach (var task in tasks)
+                {
+                    success = success && (await task);
+                }
+                return success;
+            });
         }
         /// <summary>
         /// Broadcast data to all connected client
@@ -740,18 +803,18 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="data">object array sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, params object[] data)
+        public async Task<bool> BroadcastExceptAsync(string tag, string client_id, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                BroadcastExceptAsync(tag, client_id, new EdenData());
+                return await BroadcastExceptAsync(tag, client_id, new EdenData());
             }
             else if (data.Length == 1)
             {
-                BroadcastExceptAsync(tag, client_id, new EdenData(data[0]));
+                return await BroadcastExceptAsync(tag, client_id, new EdenData(data[0]));
             }
             else
-                BroadcastExceptAsync(tag, client_id, new EdenData(data));
+                return await BroadcastExceptAsync(tag, client_id, new EdenData(data));
         }
         /// <summary>
         /// Broadcast data to all connected client
@@ -759,12 +822,12 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="client_id">client id for except  when broadcast</param>
         /// <param name="data">dictionary sending data</param>
-        public void BroadcastExceptAsync(string tag, string client_id, Dictionary<string, object> data)
+        public async Task<bool> BroadcastExceptAsync(string tag, string client_id, Dictionary<string, object> data)
         {
             if (data == null)
-                BroadcastExceptAsync(tag, client_id, new EdenData());
+                return await BroadcastExceptAsync(tag, client_id, new EdenData());
             else
-                BroadcastExceptAsync(tag, client_id, new EdenData(data));
+                return await BroadcastExceptAsync(tag, client_id, new EdenData(data));
         }
         #endregion
 
@@ -844,7 +907,7 @@ namespace EdenNetwork
         /// <summary>
         /// Async method for read packet and tcp buffer
         /// </summary>
-        /// <param name="ar">ar.AsyncState is EdenClient which sent data</param>
+        /// <param name="ar">ar.AsyncState is EdenClient which means sent data</param>
         private void ReadBuffer(IAsyncResult ar)
         {
 #pragma warning disable CS8605
@@ -907,16 +970,22 @@ namespace EdenNetwork
                 {
                     packet = JsonSerializer.Deserialize<EdenPacket>(json_object, new JsonSerializerOptions { IncludeFields = true });
 
-                    if (packet.tag.StartsWith("*r*"))
+                    if (packet.tag.StartsWith(REQUEST_PREFIX))
                     {
                         Func<string, EdenData, EdenData>? PacketListenEvent;
                         if (response_events.TryGetValue(packet.tag, out PacketListenEvent))
                         {
                             packet.data.CastJsonToType();
-                            try { SendAsync(packet.tag, eclient.id, PacketListenEvent(eclient.id, packet.data)); }
+                            try 
+                            { 
+                                if(!Send(packet.tag, eclient.id, PacketListenEvent(eclient.id, packet.data)))
+                                {
+                                    Log("Response Fail in ResponseEvent : " + packet.tag + " | " + eclient.id + "\n");
+                                }
+                            }
                             catch (Exception e) // Exception for every problem in PacketListenEvent
                             {
-                                Log("Some Error occurs in PacketListenEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
+                                Log("Some Error occurs in ResponseEvent : " + packet.tag + " | " + eclient.id + "\n" + e.Message);
                             }
                         }
                         else // Exception for packet tag not registered
@@ -948,8 +1017,6 @@ namespace EdenNetwork
                     Log("Packet data is not JSON-formed on " + eclient.id + "\n" + e.Message);
                 }
             }
-
-
 
             lock (stream)
             {
