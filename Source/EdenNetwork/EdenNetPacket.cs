@@ -84,12 +84,17 @@ namespace EdenNetwork
                 dict_data = ParseData<Dictionary<string, object>>(data);
             }
         }
-
-        public string GetError()
+        /// <summary>
+        /// Get Error Message
+        /// </summary>
+        /// <returns>error message</returns>
+        public string GetErrorMessage()
         {
             if(type == Type.ERROR)
             {
+#pragma warning disable CS8605
                 EdenError err = (EdenError)data;
+#pragma warning restore
                 return err.text; 
             }
             return "";
@@ -110,11 +115,28 @@ namespace EdenNetwork
             }
             throw new Exception("EdenData::Get() - data is not single data");
         }
+        
+        /// <summary>
+        /// Try get single value
+        /// </summary>
+        /// <param name="result">parsed data for type desired</param>
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <returns>true if parse successfully</returns>
+        public bool TryGet<T>(out T? result)
+        {
+            result = default(T);
+            if (type == Type.SINGLE && data != null)
+            { 
+                return TryParseData<T>(data, out result);
+            }
+            return false;
+        }
+        
         /// <summary>
         /// Get data by index from array object data
         /// </summary>
         /// <typeparam name="T">type to parse</typeparam>
-        /// <param name="idx"> ndex desire</param>
+        /// <param name="idx"> index of listed data </param>
         /// <returns>parsed data for type desired</returns>
         public T Get<T>(int idx)
         {
@@ -131,6 +153,25 @@ namespace EdenNetwork
             }
             throw new Exception("EdenData::Get(int idx) - data is not array");
         }
+        
+        /// <summary>
+        /// Try get data by index from array object data
+        /// </summary>
+        /// <param name="idx"> index of listed data </param>
+        /// <param name="result">parsed data for type desired</param>
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <returns>true if parse successfully</returns>
+        public bool TryGet<T>(int idx, out T? result)
+        {
+            result = default(T);
+            if (type == Type.ARRAY && array_data != null)
+            {
+                if (idx < 0 || idx > array_data.Length)
+                    return TryParseData<T>(array_data[idx], out result);
+            }
+            return false;
+        }       
+        
         /// <summary>
         /// Get data by key from dictionary data
         /// </summary>
@@ -142,8 +183,7 @@ namespace EdenNetwork
             if (dict_data == null) throw new Exception("EdenData::Get(string key) - data is null");
             if (type == Type.DICTIONARY)
             {
-                object? value;
-                if (dict_data.TryGetValue(key, out value) == false)
+                if (dict_data.TryGetValue(key, out var value) == false)
                     throw new Exception("EdenData::Get(string tag) - there is no tag in data dictionary");
 #pragma warning disable CS8603
                 return ParseData<T>(value);
@@ -151,16 +191,64 @@ namespace EdenNetwork
             }
             throw new Exception("EdenData::Get(int idx) - data is not dictionary");
         }
+        
         /// <summary>
-        /// parse json data object to type desired
+        /// Try get data by key from dictionary data
         /// </summary>
+        /// <param name="key">key desire</param>
+        /// <param name="result">parsed data for type desired</param>
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <returns>true if parse successfully</returns>
+        public bool TryGet<T>(string key, out T? result)
+        {
+            result = default(T);
+            if (type == Type.DICTIONARY && dict_data != null)
+            {
+                if (dict_data.TryGetValue(key, out var value))
+                    return TryParseData<T>(value, out result);
+            }
+            return false;
+        }
+        
+        /// <summary>
+        /// Parse json data object to type desired
+        /// </summary>f
         /// <typeparam name="T">type to parse</typeparam>
         /// <param name="data">data object</param>
         /// <returns>parsed data for type desired</returns>
         public static T? ParseData<T>(object data)
         {
-            return JsonSerializer.Deserialize<T>((JsonElement)data, new JsonSerializerOptions { IncludeFields = true });
+            try
+            {
+                return JsonSerializer.Deserialize<T>((JsonElement)data, new JsonSerializerOptions { IncludeFields = true });
+            }
+            catch
+            {
+                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data.ToString() + "\" to type : " + typeof(T).Name);
+            }
         }
+
+        /// <summary>
+        /// Try parse json data object to type desired
+        /// </summary>
+        /// <param name="data">data object</param>
+        /// <param name="result">parsed data for type desired</param>
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <returns>true if parse successfully</returns>
+        public static bool TryParseData<T>(object data, out T? result)
+        {
+            try
+            {
+                result = JsonSerializer.Deserialize<T>((JsonElement) data, new JsonSerializerOptions {IncludeFields = true});
+                return true;
+            }
+            catch
+            {
+                result = default(T);
+                return false;
+            }
+        }
+        
     }
 
     /// <summary>
