@@ -393,9 +393,9 @@ namespace EdenNetwork
         /// <param name="DoAfterSend">callback function[bool success] run after data send</param>
         /// <param name="state">parameter for callback function</param>
         /// <param name="data">EdenData structured sending data</param>
-        public void BeginSend(string tag, Action<bool> DoAfterSend, EdenData data)
+        public void BeginSend(string tag, Action<bool> callback, EdenData data)
         {
-            Task.Run(() => DoAfterSend(Send(tag, data)));
+            Task.Run(() => callback(Send(tag, data)));
         }
         /// <summary>
         /// Send data asynchronously json format to server
@@ -404,18 +404,18 @@ namespace EdenNetwork
         /// <param name="DoAfterSend">callback function[bool success ] run after data send</param>
         /// <param name="state">parameter for callback function</param>
         /// <param name="data">object array sending data</param>
-        public void BeginSend(string tag, Action<bool> DoAfterSend, params object[] data)
+        public void BeginSend(string tag, Action<bool> callback, params object[] data)
         {
             if (data == null || data.Length == 0)
             {
-                BeginSend(tag, DoAfterSend, new EdenData());
+                BeginSend(tag, callback, new EdenData());
             }
             else if (data.Length == 1)
             {
-                BeginSend(tag, DoAfterSend, new EdenData(data[0]));
+                BeginSend(tag, callback, new EdenData(data[0]));
             }
             else
-                BeginSend(tag, DoAfterSend, new EdenData(data));
+                BeginSend(tag, callback, new EdenData(data));
         }
         /// <summary>
         /// Send data asynchronously json format to server
@@ -424,12 +424,12 @@ namespace EdenNetwork
         /// <param name="DoAfterSend">callback function[bool success] run after data send</param>
         /// <param name="state">parameter for callback function</param>
         /// <param name="data">dictionary array sending data</param>
-        public void BeginSend(string tag, Action<bool> DoAfterSend, Dictionary<string, object> data)
+        public void BeginSend(string tag, Action<bool> callback, Dictionary<string, object> data)
         {
             if (data == null)
-                BeginSend(tag, DoAfterSend, new EdenData());
+                BeginSend(tag, callback, new EdenData());
             else
-                BeginSend(tag, DoAfterSend, new EdenData(data));
+                BeginSend(tag, callback, new EdenData(data));
         }
         /// <summary>
         /// Send data asynchronously json format to server
