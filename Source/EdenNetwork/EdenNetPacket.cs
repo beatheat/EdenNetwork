@@ -122,12 +122,12 @@ namespace EdenNetwork
         /// <param name="result">parsed data for type desired</param>
         /// <typeparam name="T">type to parse</typeparam>
         /// <returns>true if parse successfully</returns>
-        public bool TryGet<T>(out T? result)
+        public bool TryGet<T>(out T result)
         {
-            result = default(T);
+            result = default(T)!;
             if (type == Type.SINGLE && data != null)
             { 
-                return TryParseData<T>(data, out result);
+                return TryParseData<T>(data, out result!);
             }
             return false;
         }
@@ -161,13 +161,13 @@ namespace EdenNetwork
         /// <param name="result">parsed data for type desired</param>
         /// <typeparam name="T">type to parse</typeparam>
         /// <returns>true if parse successfully</returns>
-        public bool TryGet<T>(int idx, out T? result)
+        public bool TryGet<T>(int idx, out T result)
         {
-            result = default(T);
+            result = default(T)!;
             if (type == Type.ARRAY && array_data != null)
             {
                 if (idx < 0 || idx > array_data.Length)
-                    return TryParseData<T>(array_data[idx], out result);
+                    return TryParseData<T>(array_data[idx], out result!);
             }
             return false;
         }       
@@ -199,13 +199,13 @@ namespace EdenNetwork
         /// <param name="result">parsed data for type desired</param>
         /// <typeparam name="T">type to parse</typeparam>
         /// <returns>true if parse successfully</returns>
-        public bool TryGet<T>(string key, out T? result)
+        public bool TryGet<T>(string key, out T result)
         {
-            result = default(T);
+            result = default(T)!;
             if (type == Type.DICTIONARY && dict_data != null)
             {
                 if (dict_data.TryGetValue(key, out var value))
-                    return TryParseData<T>(value, out result);
+                    return TryParseData<T>(value, out result!);
             }
             return false;
         }
