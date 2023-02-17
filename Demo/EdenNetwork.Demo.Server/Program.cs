@@ -32,11 +32,8 @@ namespace EdenNetwork.Demo.Server
 
             //Register callback method which run after client message received
             server.AddReceiveEvent("client_msg", (string client_id, EdenData data) => {
-                Console.WriteLine("Client: " + data.Get<string>());
-            });
-            server.AddResponse("response_test", (string client_id, EdenData data) =>
-            {
-                return data;
+                if (data.TryGet<string>(out var testData))
+                    Console.WriteLine("Client: " + testData);
             });
 
             bool quit = false;

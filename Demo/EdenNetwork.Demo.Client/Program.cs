@@ -24,12 +24,10 @@ namespace EdenNetwork.Demo.Client
                 Console.WriteLine("Connection success");
                 //Register callback method which run after server message received
                 client.AddReceiveEvent("server_msg", (EdenData data) => {
-                    Console.WriteLine("Server: " + data.Get<string>());
+                    if(data.TryGet<string>(out var testData))
+                        Console.WriteLine("Server: " + testData);
                 });
-                client.RequestAsync("response_test", 10,(EdenData data) => {
-                    Console.WriteLine(data.Get<string>());
-                    
-                }, "123");
+
                 bool quit = false;
                 //main loop
                 while (!quit)
