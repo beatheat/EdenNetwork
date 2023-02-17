@@ -325,7 +325,7 @@ namespace EdenNetwork
                 }
                 // Begin sending packet
                 stream.Write(sendObj, 0, sendObj.Length);
-                _logger?.Log($"Send({clientId}/{bytes.Length}Bytes) : [TAG] {tag} " +
+                _logger?.Log($"Send({clientId}/{bytes.Length,4}B) : [TAG] {tag} " +
                     $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
                 return true;
             }
@@ -535,7 +535,7 @@ namespace EdenNetwork
                     }
                     // Begin sending packet
                     await stream.WriteAsync(sendObj, 0, sendObj.Length);
-                    _logger?.Log($"Send({clientId}/{bytes.Length}Bytes) : [TAG] {tag} " +
+                    _logger?.Log($"Send({clientId}/{bytes.Length,4}B) : [TAG] {tag} " +
                         $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
                     return true;
                 }
@@ -905,7 +905,7 @@ namespace EdenNetwork
                 try
                 {
                     var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, new JsonSerializerOptions { IncludeFields = true });
-                    _logger?.Log($"Recv({edenClient.id}/{packetLength}Bytes) : [TAG] {packet.tag} [DATA] {packet.data.data}");
+                    _logger?.Log($"Recv({edenClient.id}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
 
                     if (packet.tag.StartsWith(REQUEST_PREFIX))
                     {

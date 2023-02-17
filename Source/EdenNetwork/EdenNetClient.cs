@@ -104,16 +104,14 @@ namespace EdenNetwork
         /// <returns>returns ConnectionState of server[OK, FULL, NOT_LISTENING, ERROR]</returns>
         public async Task<ConnectionState> ConnectAsync()
         {
-            return await Task.Run(async () =>
+            return await Task.Run(() =>
             {
                 if (_tcpClient != null)
                     Close();
                 try
                 {
                     _tcpClient = new TcpClient(AddressFamily.InterNetwork);
-
                     _tcpClient.Connect(_ipAddress, _port);
-                    await _tcpClient.ConnectAsync(_ipAddress, _port);
                     _stream = _tcpClient.GetStream();
                     byte[] buffer = new byte[128];
                     _stream.Read(buffer);
@@ -204,7 +202,7 @@ namespace EdenNetwork
                     return false;
                 }
                 _stream.Write(sendObj, 0, sendObj.Length);
-                _logger?.Log($"Send({_serverId}/{bytes.Length}Bytes) : [TAG] {tag} " +
+                _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
                     $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
                 return true;
             }
@@ -272,7 +270,7 @@ namespace EdenNetwork
                         return false;
                     }
                     await _stream.WriteAsync(sendObj, 0, sendObj.Length);
-                    _logger?.Log($"Send({_serverId}/{bytes.Length}Bytes) : [TAG] {tag} " +
+                    _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
                         $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
 
                     return true;
@@ -418,20 +416,20 @@ namespace EdenNetwork
             if (result == false) 
                 return EdenData.Error("ERR:Request send failed");
             double time = 0;
-            EdenData? rdata;
+            EdenData? responseData;
             do
             {
                 Thread.Sleep(100);
                 time += 0.1;
 
-                if (_responseEvents.TryGetValue(tag, out rdata) && rdata != null)
+                if (_responseEvents.TryGetValue(tag, out responseData) && responseData != null)
                     break;
 
             } while (timeout > time);
             _responseEvents.Remove(tag);
             if (timeout <= time) 
                 return EdenData.Error("ERR:Request timeout");
-            return rdata!.Value;
+            return responseData!.Value;
         }
 
         /// <summary>
@@ -485,19 +483,19 @@ namespace EdenNetwork
                 if (result == false) 
                     return EdenData.Error("ERR:Request send failed");
                 double time = 0;
-                EdenData? rdata;
+                EdenData? responseData;
                 do
                 {
                     await Task.Delay(100);
                     time += 0.1;
 
-                    if (_responseEvents.TryGetValue(tag, out rdata) && rdata != null)
+                    if (_responseEvents.TryGetValue(tag, out responseData) && responseData != null)
                         break;
 
                 } while (timeout > time);
                 _responseEvents.Remove(tag);
                 if (timeout <= time) return EdenData.Error("ERR:Request timeout");
-                else return rdata!.Value;
+                else return responseData!.Value;
             });
         }
 
@@ -718,7 +716,7 @@ namespace EdenNetwork
                 try
                 {
                     var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, new JsonSerializerOptions { IncludeFields = true });
-                    _logger?.Log($"Recv({_serverId}/{packetLength}Bytes) : [TAG] {packet.tag} [DATA] {packet.data.data}");
+                    _logger?.Log($"Recv({_serverId}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
 
                     packet.data.CastJsonToType();
 

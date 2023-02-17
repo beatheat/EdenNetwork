@@ -9,14 +9,15 @@
 		private readonly Queue<string> _logQueue;
 		private readonly string _name;
 
-		/// <summary>
-		/// Logging class
-		/// </summary>
-		/// <param name="path">path for log file written</param>
-		/// <param name="printConsole">whether log is printed on console</param>
-		/// <param name="flushInterval">interval of stream flush in millisecond</param>
-		/// <exception cref="Exception">Cannot create log stream Exception</exception>
-		public Logger(string path, string name, bool printConsole = true, int flushInterval = DEFAULT_FLUSH_INTERVAL)
+        /// <summary>
+        /// Logging class
+        /// </summary>
+        /// <param name="path">path for log file written</param>
+        /// <param name="name">name of log subject</param>
+        /// <param name="printConsole">whether log is printed on console</param>
+        /// <param name="flushInterval">interval of stream flush in millisecond</param>
+        /// <exception cref="Exception">Cannot create log stream Exception</exception>
+        public Logger(string path, string name, bool printConsole = true, int flushInterval = DEFAULT_FLUSH_INTERVAL)
 		{
 			this._printConsole = printConsole;
 			this._flushInterval = flushInterval;
@@ -24,14 +25,18 @@
 			_logQueue = new Queue<string>();
 			try
 			{
-				Console.WriteLine($"[{name}]Opening log stream...");
+				if(_printConsole)
+					Console.WriteLine($"[{name}] Opening log stream...");
 				_stream = new StreamWriter(path, append: true);
 				var loggerThread = new Thread(LoggerLoop); 
 				loggerThread.Start();
 				var flushThread = new Thread(FlushLoop);
 				flushThread.Start();
-				ClearLine();
-				Console.WriteLine($"[{name}]Log stream opened. Log thread is running");
+				if (_printConsole)
+				{
+					ClearLine();
+					Console.WriteLine($"[{name}] Log stream opened. Log thread is running");
+				}
 			}
 			catch (Exception e)
 			{
@@ -95,7 +100,7 @@
 		{
 			_logQueue.Enqueue(log);
 			if (_printConsole)
-				Console.WriteLine($"[{_name}]" + log);
+				Console.WriteLine($"[{_name}] " + log);
 		}
 		
 		/// <summary>
@@ -107,7 +112,7 @@
 			if (_printConsole)
 			{
 				ClearLine();
-				Console.WriteLine($"[{_name}]" + log);
+				Console.WriteLine($"[{_name}] " + log);
 			}
 		}
 	}
