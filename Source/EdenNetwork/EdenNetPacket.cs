@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace EdenNetwork
@@ -85,21 +86,21 @@ namespace EdenNetwork
             }
         }
         /// <summary>
-        /// Get Error Message
+        /// Check if data is error and get error message
         /// </summary>
         /// <returns>error message</returns>
-        public string GetErrorMessage()
+        public bool CheckError(out string message)
         {
-            if(type == Type.ERROR)
+            message = "";
+            if (type == Type.ERROR)
             {
-#pragma warning disable CS8605
-                EdenError err = (EdenError)data;
-#pragma warning restore
-                return err.text; 
+                EdenError err = (EdenError)data!;
+                message = err.text;
+                return true;
             }
-            return "";
+            return false;
         }
-
+        
         /// <summary>
         /// Get single data
         /// </summary>
@@ -147,9 +148,7 @@ namespace EdenNetwork
                 {
                     throw new Exception("EdenData::Get(int idx) - out of index ");
                 }
-#pragma warning disable CS8603
-                return ParseData<T>(array_data[idx]);
-#pragma warning restore
+                return ParseData<T>(array_data[idx])!;
             }
             throw new Exception("EdenData::Get(int idx) - data is not array");
         }
@@ -185,9 +184,7 @@ namespace EdenNetwork
             {
                 if (dict_data.TryGetValue(key, out var value) == false)
                     throw new Exception("EdenData::Get(string tag) - there is no tag in data dictionary");
-#pragma warning disable CS8603
-                return ParseData<T>(value);
-#pragma warning restore
+                return ParseData<T>(value)!;
             }
             throw new Exception("EdenData::Get(int idx) - data is not dictionary");
         }
@@ -248,7 +245,17 @@ namespace EdenNetwork
                 return false;
             }
         }
-        
+
+
+        /// <summary>
+        /// Make error type eden data
+        /// </summary>
+        /// <param name="message">error message</param>
+        /// <returns>EdenData : error type</returns>
+        public static EdenData Error(string message)
+        {
+            return new EdenData(new EdenError(message));
+        }
     }
 
     /// <summary>
