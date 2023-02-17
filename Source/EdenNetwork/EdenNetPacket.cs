@@ -6,7 +6,7 @@ namespace EdenNetwork
 {
 
     /// <summary>
-    /// Struct : data type for respresent error
+    /// Struct : data type for represent error
     /// </summary>
     public struct EdenError
     {
@@ -30,9 +30,9 @@ namespace EdenNetwork
         public object? data;
 
         [JsonIgnore]
-        private object[]? array_data = null;
+        private object[]? arrayData = null;
         [JsonIgnore]
-        private Dictionary<string, object>? dict_data = null;
+        private Dictionary<string, object>? dictData = null;
 
         public EdenData()
         {
@@ -78,11 +78,11 @@ namespace EdenNetwork
             if (data == null) return;
             if (type == Type.ARRAY)
             {
-                array_data = ParseData<object[]>(data);
+                arrayData = ParseData<object[]>(data);
             }
             else if (type == Type.DICTIONARY)
             {
-                dict_data = ParseData<Dictionary<string, object>>(data);
+                dictData = ParseData<Dictionary<string, object>>(data);
             }
         }
         /// <summary>
@@ -141,14 +141,14 @@ namespace EdenNetwork
         /// <returns>parsed data for type desired</returns>
         public T Get<T>(int idx)
         {
-            if (array_data == null) throw new Exception("EdenData::Get(int idx) - data is null");
+            if (arrayData == null) throw new Exception("EdenData::Get(int idx) - data is null");
             if (type == Type.ARRAY)
             {
-                if (idx < 0 || idx > array_data.Length)
+                if (idx < 0 || idx > arrayData.Length)
                 {
                     throw new Exception("EdenData::Get(int idx) - out of index ");
                 }
-                return ParseData<T>(array_data[idx])!;
+                return ParseData<T>(arrayData[idx])!;
             }
             throw new Exception("EdenData::Get(int idx) - data is not array");
         }
@@ -163,10 +163,10 @@ namespace EdenNetwork
         public bool TryGet<T>(int idx, out T result)
         {
             result = default(T)!;
-            if (type == Type.ARRAY && array_data != null)
+            if (type == Type.ARRAY && arrayData != null)
             {
-                if (idx < 0 || idx > array_data.Length)
-                    return TryParseData<T>(array_data[idx], out result!);
+                if (idx < 0 || idx > arrayData.Length)
+                    return TryParseData<T>(arrayData[idx], out result!);
             }
             return false;
         }       
@@ -179,10 +179,10 @@ namespace EdenNetwork
         /// <returns>parsed data for type desired</returns>
         public T Get<T>(string key)
         {
-            if (dict_data == null) throw new Exception("EdenData::Get(string key) - data is null");
+            if (dictData == null) throw new Exception("EdenData::Get(string key) - data is null");
             if (type == Type.DICTIONARY)
             {
-                if (dict_data.TryGetValue(key, out var value) == false)
+                if (dictData.TryGetValue(key, out var value) == false)
                     throw new Exception("EdenData::Get(string tag) - there is no tag in data dictionary");
                 return ParseData<T>(value)!;
             }
@@ -199,9 +199,9 @@ namespace EdenNetwork
         public bool TryGet<T>(string key, out T result)
         {
             result = default(T)!;
-            if (type == Type.DICTIONARY && dict_data != null)
+            if (type == Type.DICTIONARY && dictData != null)
             {
-                if (dict_data.TryGetValue(key, out var value))
+                if (dictData.TryGetValue(key, out var value))
                     return TryParseData<T>(value, out result!);
             }
             return false;
