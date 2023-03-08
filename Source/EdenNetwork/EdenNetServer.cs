@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using static EdenNetwork.Constant;
 
 namespace EdenNetwork
@@ -14,12 +15,12 @@ namespace EdenNetwork
         /// </summary>
         private struct EdenClient
         {
-            public EdenClient(TcpClient tcpClient, string id)
+            public EdenClient(TcpClient tcpClient, string id, int bufferSize)
             {
                 this.tcpClient = tcpClient;
                 this.stream = tcpClient.GetStream();
                 this.id = id;
-                this.readBuffer = new byte[BUF_SIZE];
+                this.readBuffer = new byte[bufferSize];
             }
 
             public readonly TcpClient tcpClient;
@@ -35,8 +36,7 @@ namespace EdenNetwork
         /// Constant : constant for infinite listen number of client
         /// </summary>
         public const int INF_CLIENT_ACCEPT = Int32.MaxValue;
-
-
+        
         private readonly TcpListener _server;
         private readonly Dictionary<string, EdenClient> _clients;
         private readonly Dictionary<string, Action<string, EdenData>> _receiveEvents;
@@ -47,6 +47,10 @@ namespace EdenNetwork
         private int _maxAcceptNum;
 
         private readonly Logger? _logger;
+
+        private JsonSerializerOptions _options;
+
+        private int _bufferSize;
 
         public int ClientNum => _clients.Count;
 
@@ -82,6 +86,8 @@ namespace EdenNetwork
             _acceptEvent = null;
             _disconnectEvent = null;
             _logger = null;
+            _bufferSize = DEFAULT_BUFFER_SIZE;
+            _options = new JsonSerializerOptions {IncludeFields = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull};
             if (logPath != "")
                 _logger = new Logger(logPath, "EdenNetServer", printConsole, flushInterval);
         }
@@ -118,6 +124,26 @@ namespace EdenNetwork
         /// </exception>
         public EdenNetServer(int port) : this("0.0.0.0", port, "") { }
         #endregion
+
+        /// <summary>
+        /// Set JsonSerialize Option
+        /// Default Option is {IncludeFields = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNul}
+        /// </summary>
+        /// <param name="options">JsonSerialize Option</param>
+        public void SetSerializeOption(JsonSerializerOptions options)
+        {
+            _options = options;
+        }
+
+        /// <summary>
+        /// Set data read buffer size in bytes, default value is 8192 Bytes
+        /// </summary>
+        /// <param name="size">buffer size in bytes</param>
+        public void SetBufferSize(int size)
+        {
+            _bufferSize = DEFAULT_BUFFER_SIZE;
+        }
+        
         /// <summary>
         /// Listen and wait for client connection
         /// </summary>
@@ -314,19 +340,19 @@ namespace EdenNetwork
             {
                 EdenPacket packet = new EdenPacket {tag = tag, data = data};
 
-                string jsonPacket = JsonSerializer.Serialize(packet, new JsonSerializerOptions { IncludeFields = true });
+                string jsonPacket = JsonSerializer.Serialize(packet, _options);
                 byte[] bytes = Encoding.UTF8.GetBytes(jsonPacket);
                 byte[] sendObj = BitConverter.GetBytes(bytes.Length);
                 sendObj = sendObj.Concat(bytes).ToArray();
-                if (sendObj.Length >= BUF_SIZE) // Exception for too big data size
+                if (sendObj.Length >= _bufferSize) // Exception for too big data size
                 {
-                    _logger?.Log($"Error! Send - Too big data to send once, EdenNetProtocol support size under ({BUF_SIZE})KB");
+                    _logger?.Log($"Error! Send - Data is bigger than buffer size ({_bufferSize})KB");
                     return false;
                 }
                 // Begin sending packet
                 stream.Write(sendObj, 0, sendObj.Length);
                 _logger?.Log($"Send({clientId}/{bytes.Length,4}B) : [TAG] {tag} " +
-                    $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
+                    $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
                 return true;
             }
             else // Exception for network stream write is not ready
@@ -524,19 +550,19 @@ namespace EdenNetwork
                 {
                     EdenPacket packet = new EdenPacket {tag = tag, data = data};
 
-                    string jsonPacket = JsonSerializer.Serialize(packet, new JsonSerializerOptions { IncludeFields = true });
+                    string jsonPacket = JsonSerializer.Serialize(packet, _options);
                     byte[] bytes = Encoding.UTF8.GetBytes(jsonPacket);
                     byte[] sendObj = BitConverter.GetBytes(bytes.Length);
                     sendObj = sendObj.Concat(bytes).ToArray();
-                    if (sendObj.Length >= BUF_SIZE) // Exception for too big data size
+                    if (sendObj.Length >= _bufferSize) // Exception for too big data size
                     {
-                        _logger?.Log($"Error! SendAsync - Too big data to send once, EdenNetProtocol support data size under ({BUF_SIZE})");
+                        _logger?.Log($"Error! Send - Data is bigger than buffer size ({_bufferSize})KB");
                         return false;
                     }
                     // Begin sending packet
                     await stream.WriteAsync(sendObj, 0, sendObj.Length);
                     _logger?.Log($"Send({clientId}/{bytes.Length,4}B) : [TAG] {tag} " +
-                        $"[DATA] {JsonSerializer.Serialize(data.data, new JsonSerializerOptions { IncludeFields = true })}");
+                        $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
                     return true;
                 }
                 else // Exception for network stream write is not ready
@@ -825,8 +851,8 @@ namespace EdenNetwork
             }
 
             _logger?.Log($"Remote client connected {remoteEndPoint}");
-            
-            EdenClient edenClient = new EdenClient(client, remoteEndPoint.ToString())!;
+
+            EdenClient edenClient = new EdenClient(client, remoteEndPoint.ToString(), _bufferSize);
             lock (_clients)
             {
                 _clients.Add(edenClient.id, edenClient);
@@ -904,7 +930,7 @@ namespace EdenNetwork
 
                 try
                 {
-                    var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, new JsonSerializerOptions { IncludeFields = true });
+                    var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, _options);
                     _logger?.Log($"Recv({edenClient.id}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
 
                     if (packet.tag.StartsWith(REQUEST_PREFIX))

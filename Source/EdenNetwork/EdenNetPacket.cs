@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace EdenNetwork
 {
-
     /// <summary>
     /// Struct : data type for represent error
     /// </summary>
@@ -30,9 +29,13 @@ namespace EdenNetwork
         public object? data;
 
         [JsonIgnore]
-        private object[]? arrayData = null;
+        private object[]? _arrayData = null;
         [JsonIgnore]
-        private Dictionary<string, object>? dictData = null;
+        private Dictionary<string, object>? _dictData = null;
+        [JsonIgnore]
+        public static readonly JsonSerializerOptions defaultOptions = new JsonSerializerOptions {IncludeFields = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull};
+        [JsonIgnore]
+        private JsonSerializerOptions _options = defaultOptions;
 
         public EdenData()
         {
@@ -49,7 +52,7 @@ namespace EdenNetwork
         /// <summary>
         /// Initialize structure by single data
         /// </summary>
-        public EdenData(object data)
+        public EdenData(object? data)
         {
             this.data = data;
             type = Type.SINGLE;
@@ -78,11 +81,11 @@ namespace EdenNetwork
             if (data == null) return;
             if (type == Type.ARRAY)
             {
-                arrayData = ParseData<object[]>(data);
+                _arrayData = ParseData<object[]>(data, _options);
             }
             else if (type == Type.DICTIONARY)
             {
-                dictData = ParseData<Dictionary<string, object>>(data);
+                _dictData = ParseData<Dictionary<string, object>>(data, _options);
             }
         }
         /// <summary>
@@ -112,7 +115,7 @@ namespace EdenNetwork
             {
                 if (data == null)
                     return default(T);
-                return ParseData<T>(data);
+                return ParseData<T>(data, _options);
             }
             throw new Exception("EdenData::Get() - data is not single data");
         }
@@ -128,7 +131,7 @@ namespace EdenNetwork
             result = default(T)!;
             if (type == Type.SINGLE && data != null)
             { 
-                return TryParseData<T>(data, out result!);
+                return TryParseData<T>(data, out result!, _options);
             }
             return false;
         }
@@ -141,14 +144,14 @@ namespace EdenNetwork
         /// <returns>parsed data for type desired</returns>
         public T Get<T>(int idx)
         {
-            if (arrayData == null) throw new Exception("EdenData::Get(int idx) - data is null");
+            if (_arrayData == null) throw new Exception("EdenData::Get(int idx) - data is null");
             if (type == Type.ARRAY)
             {
-                if (idx < 0 || idx > arrayData.Length)
+                if (idx < 0 || idx > _arrayData.Length)
                 {
                     throw new Exception("EdenData::Get(int idx) - out of index ");
                 }
-                return ParseData<T>(arrayData[idx])!;
+                return ParseData<T>(_arrayData[idx], _options)!;
             }
             throw new Exception("EdenData::Get(int idx) - data is not array");
         }
@@ -163,10 +166,10 @@ namespace EdenNetwork
         public bool TryGet<T>(int idx, out T result)
         {
             result = default(T)!;
-            if (type == Type.ARRAY && arrayData != null)
+            if (type == Type.ARRAY && _arrayData != null)
             {
-                if (idx < 0 || idx > arrayData.Length)
-                    return TryParseData<T>(arrayData[idx], out result!);
+                if (idx < 0 || idx > _arrayData.Length)
+                    return TryParseData<T>(_arrayData[idx], out result!, _options);
             }
             return false;
         }       
@@ -179,12 +182,12 @@ namespace EdenNetwork
         /// <returns>parsed data for type desired</returns>
         public T Get<T>(string key)
         {
-            if (dictData == null) throw new Exception("EdenData::Get(string key) - data is null");
+            if (_dictData == null) throw new Exception("EdenData::Get(string key) - data is null");
             if (type == Type.DICTIONARY)
             {
-                if (dictData.TryGetValue(key, out var value) == false)
+                if (_dictData.TryGetValue(key, out var value) == false)
                     throw new Exception("EdenData::Get(string tag) - there is no tag in data dictionary");
-                return ParseData<T>(value)!;
+                return ParseData<T>(value, _options)!;
             }
             throw new Exception("EdenData::Get(int idx) - data is not dictionary");
         }
@@ -199,13 +202,14 @@ namespace EdenNetwork
         public bool TryGet<T>(string key, out T result)
         {
             result = default(T)!;
-            if (type == Type.DICTIONARY && dictData != null)
+            if (type == Type.DICTIONARY && _dictData != null)
             {
-                if (dictData.TryGetValue(key, out var value))
-                    return TryParseData<T>(value, out result!);
+                if (_dictData.TryGetValue(key, out var value))
+                    return TryParseData<T>(value, out result!, _options);
             }
             return false;
         }
+        
         
         /// <summary>
         /// Parse json data object to type desired
@@ -217,7 +221,7 @@ namespace EdenNetwork
         {
             try
             {
-                return JsonSerializer.Deserialize<T>((JsonElement)data, new JsonSerializerOptions { IncludeFields = true });
+                return ((JsonElement)data).Deserialize<T>(defaultOptions);
             }
             catch
             {
@@ -236,7 +240,46 @@ namespace EdenNetwork
         {
             try
             {
-                result = JsonSerializer.Deserialize<T>((JsonElement) data, new JsonSerializerOptions {IncludeFields = true});
+                result = ((JsonElement) data).Deserialize<T>(defaultOptions);
+                return true;
+            }
+            catch
+            {
+                result = default(T);
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Parse json data object to type desired
+        /// </summary>f
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <param name="data">data object</param>
+        /// <returns>parsed data for type desired</returns>
+        public static T? ParseData<T>(object data, JsonSerializerOptions options)
+        {
+            try
+            {
+                return ((JsonElement)data).Deserialize<T>(options);
+            }
+            catch
+            {
+                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data.ToString() + "\" to type : " + typeof(T).Name);
+            }
+        }
+
+        /// <summary>
+        /// Try parse json data object to type desired
+        /// </summary>
+        /// <param name="data">data object</param>
+        /// <param name="result">parsed data for type desired</param>
+        /// <typeparam name="T">type to parse</typeparam>
+        /// <returns>true if parse successfully</returns>
+        public static bool TryParseData<T>(object data, out T? result, JsonSerializerOptions options)
+        {
+            try
+            {
+                result = ((JsonElement) data).Deserialize<T>(options);
                 return true;
             }
             catch
@@ -255,6 +298,16 @@ namespace EdenNetwork
         public static EdenData Error(string message)
         {
             return new EdenData(new EdenError(message));
+        }
+        
+        /// <summary>
+        /// Set JsonSerialize Option
+        /// Default Option is {IncludeFields = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNul}
+        /// </summary>
+        /// <param name="options">JsonSerialize Option</param>
+        public void SetSerializeOption(JsonSerializerOptions options)
+        {
+            _options = options;
         }
     }
 
