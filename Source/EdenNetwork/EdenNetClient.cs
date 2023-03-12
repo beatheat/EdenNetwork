@@ -114,10 +114,19 @@ namespace EdenNetwork
                 return ConnectionState.ERROR;
             }
             
-            _logger?.Log($"Connection success to {_ipAddress}:{_port}");
-            _serverId = _ipAddress + ":" + _port;
-            _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
-            
+            try
+            {
+                _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
+                _logger?.Log($"Connection success to {_ipAddress}:{_port}");
+                _serverId = _ipAddress + ":" + _port;
+            }
+            catch(Exception e)
+            {
+                _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+                Close();
+                return ConnectionState.ERROR;
+            }
+
             return ConnectionState.OK;
         }
 
@@ -153,9 +162,18 @@ namespace EdenNetwork
                     return ConnectionState.ERROR;
                 }
             
-                _logger?.Log($"Connection success to {_ipAddress}:{_port}");
-                _serverId = _ipAddress + ":" + _port;
-                _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
+                try
+                {
+                    _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
+                    _logger?.Log($"Connection success to {_ipAddress}:{_port}");
+                    _serverId = _ipAddress + ":" + _port;
+                }
+                catch(Exception e)
+                {
+                    _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+                    Close();
+                    return ConnectionState.ERROR;
+                }
                 return ConnectionState.OK;
             });
         }
@@ -195,10 +213,19 @@ namespace EdenNetwork
                     callback(ConnectionState.ERROR);
                     return;
                 }
-                _logger?.Log($"Connection success to {_ipAddress}:{_port}");
-                _serverId = _ipAddress + ":" + _port;
-                _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
-                callback(ConnectionState.OK);
+                try
+                {
+                    _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
+                    _logger?.Log($"Connection success to {_ipAddress}:{_port}");
+                    _serverId = _ipAddress + ":" + _port;
+                    callback(ConnectionState.OK);
+                }
+                catch(Exception e)
+                {
+                    _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+                    Close();
+                    callback(ConnectionState.ERROR);
+                }
             });
 
         }
@@ -731,9 +758,27 @@ namespace EdenNetwork
             int bytePointer = 0;
             while (bytePointer < numberOfBytes)
             {
-                var packetLength = BitConverter.ToInt32(new ArraySegment<byte>(_readBuffer, bytePointer, 4));
+                int packetLength;
+                try
+                {
+                    packetLength = BitConverter.ToInt32(new ArraySegment<byte>(_readBuffer, bytePointer, 4));
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error! Cannot convert packet length : " + e.Message);
+                    break;
+                }
                 bytePointer += 4;
-                byte[] jsonObject = (new ArraySegment<byte>(_readBuffer, bytePointer, packetLength)).ToArray();
+                byte[] jsonObject;
+                try
+                {
+                    jsonObject = (new ArraySegment<byte>(_readBuffer, bytePointer, packetLength).ToArray());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error! Cannot convert packet data : " + e.Message);
+                    break;
+                }
                 bytePointer += packetLength;
 
                 try

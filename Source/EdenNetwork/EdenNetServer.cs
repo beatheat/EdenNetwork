@@ -828,22 +828,24 @@ namespace EdenNetwork
                 //maybe server is closed
                 return;
             }
+
             string log = "";
             //client cannot be null
-            IPEndPoint remoteEndPoint = (IPEndPoint)client.Client.RemoteEndPoint!;
+            IPEndPoint remoteEndPoint = (IPEndPoint) client.Client.RemoteEndPoint!;
             //remoteEndPoint cannot be null
             if (!_isListening || _clients.Count >= _maxAcceptNum)
             {
                 if (!_isListening)
                 {
                     log = $"{remoteEndPoint} is rejected by SERVER NOT LISTENING STATE";
-                    client.GetStream().Write(BitConverter.GetBytes((int)ConnectionState.NOT_LISTENING));
+                    client.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.NOT_LISTENING));
                 }
                 else if (_clients.Count >= _maxAcceptNum)
                 {
                     log = $"{remoteEndPoint} is rejected by SERVER FULL STATE";
-                    client.GetStream().Write(BitConverter.GetBytes((int)ConnectionState.FULL));
+                    client.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.FULL));
                 }
+
                 _logger?.Log(log);
                 client.GetStream().Close();
                 client.Close();
@@ -857,20 +859,54 @@ namespace EdenNetwork
             {
                 _clients.Add(edenClient.id, edenClient);
             }
+
             _acceptEvent?.Invoke(edenClient.id);
 
             NetworkStream stream = client.GetStream();
 
-            //OK sign to client
-            stream.Write(BitConverter.GetBytes((int)ConnectionState.OK));
-
             _server.BeginAcceptTcpClient(Listening, null);
 
-            if (stream.CanRead)
-                stream.BeginRead(edenClient.readBuffer, 0, edenClient.readBuffer.Length, ReadBuffer, edenClient);
-            else // Exception for network stream  read is not ready
+            try
             {
-                _logger?.Log($"Error! Cannot read network stream of : {edenClient.id}");
+                if (stream.CanRead)
+                {
+                    stream.BeginRead(edenClient.readBuffer, 0, edenClient.readBuffer.Length, ReadBuffer, edenClient);
+                    //OK sign to client
+                    stream.WriteAsync(BitConverter.GetBytes((int) ConnectionState.OK));
+                }
+                else // Exception for network stream  read is not ready
+                {
+                    RollBackClient();
+                    _logger?.Log($"Error! Cannot read network stream of : {edenClient.id}");
+                }
+            }
+            catch (Exception e)
+            {
+                RollBackClient();
+                _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+            }
+            
+            void RollBackClient()
+            {
+                stream.Close();
+                client.Close();
+                lock (_clients)
+                {
+                    _clients.Remove(edenClient.id);
+                }             
+            }
+        }
+
+        private void CloseClient(EdenClient edenClient)
+        {
+            edenClient.stream.Close();
+            edenClient.tcpClient.Close();
+
+            _disconnectEvent?.Invoke(edenClient.id);
+
+            lock (_clients)
+            {
+                _clients.Remove(edenClient.id);
             }
         }
 
@@ -890,110 +926,116 @@ namespace EdenNetwork
             }
             catch (Exception e) // Exception for forced disconnection to client
             {
-                edenClient.stream.Close();
-                edenClient.tcpClient.Close();
-
-                _disconnectEvent?.Invoke(edenClient.id);
-
-                lock (_clients)
-                {
-                    _clients.Remove(edenClient.id);
-                }
-
+                CloseClient(edenClient);
                 _logger?.Log($"Forced disconnection from client. {edenClient.id}\n{e.Message}");
                 return;
             }
 
             if (numberOfBytes == 0)// Process for client disconnection
             {
-                edenClient.stream.Close();
-                edenClient.tcpClient.Close();
-
-                _disconnectEvent?.Invoke(edenClient.id);
-
-                lock (_clients)
-                {
-                    _clients.Remove(edenClient.id);
-                }
-
+                CloseClient(edenClient);
                 _logger?.Log($"Client disconnected.{edenClient.id}");
                 return;
             }
 
-            int bytePointer = 0;
-            while(bytePointer < numberOfBytes)
+            if (numberOfBytes > edenClient.readBuffer.Length)
             {
-                var packetLength = BitConverter.ToInt32(new ArraySegment<byte>(edenClient.readBuffer, bytePointer , 4));
-                bytePointer += 4;
-                byte[] jsonObject = (new ArraySegment<byte>(edenClient.readBuffer, bytePointer, packetLength).ToArray());
-                bytePointer += packetLength;
-
-                try
+                int bytePointer = 0;
+                while (bytePointer < numberOfBytes)
                 {
-                    var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, _options);
-                    _logger?.Log($"Recv({edenClient.id}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
-
-                    if (packet.tag.StartsWith(REQUEST_PREFIX))
+                    int packetLength;
+                    try
                     {
-                        if (_responseEvents.TryGetValue(packet.tag, out var packetListenEvent))
+                        packetLength = BitConverter.ToInt32(new ArraySegment<byte>(edenClient.readBuffer, bytePointer, 4));
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Error! Cannot convert packet length : " + e.Message);
+                        break;
+                    }
+                    bytePointer += 4;
+                    byte[] jsonObject;
+                    try
+                    {
+                        jsonObject = (new ArraySegment<byte>(edenClient.readBuffer, bytePointer, packetLength).ToArray());
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Error! Cannot convert packet data : " + e.Message);
+                        break;
+                    }
+                    bytePointer += packetLength;
+
+                    try
+                    {
+                        var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, _options);
+                        _logger?.Log($"Recv({edenClient.id}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
+
+                        if (packet.tag.StartsWith(REQUEST_PREFIX))
                         {
-                            packet.data.CastJsonToType();
-                            try 
-                            { 
-                                if(!Send(packet.tag, edenClient.id, packetListenEvent(edenClient.id, packet.data)))
+                            if (_responseEvents.TryGetValue(packet.tag, out var packetListenEvent))
+                            {
+                                packet.data.CastJsonToType();
+                                try
                                 {
-                                    _logger?.Log($"Error! Response Fail in ResponseEvent : {packet.tag} | {edenClient.id}");
+                                    if (!Send(packet.tag, edenClient.id, packetListenEvent(edenClient.id, packet.data)))
+                                    {
+                                        _logger?.Log($"Error! Response Fail in ResponseEvent : {packet.tag} | {edenClient.id}");
+                                    }
+                                }
+                                catch (Exception e) // Exception for every problem in PacketListenEvent
+                                {
+                                    _logger?.Log($"Error! Error caught in ResponseEvent : {packet.tag} | {edenClient.id} \n {e.Message}");
                                 }
                             }
-                            catch (Exception e) // Exception for every problem in PacketListenEvent
+                            else // Exception for packet tag not registered
                             {
-                                _logger?.Log($"Error! Error caught in ResponseEvent : {packet.tag} | {edenClient.id} \n {e.Message}");
+                                _logger?.Log($"Error! There is no packet tag {packet.tag} from {edenClient.id}");
                             }
                         }
-                        else // Exception for packet tag not registered
+                        else
                         {
-                            _logger?.Log($"Error! There is no packet tag {packet.tag} from {edenClient.id}");
+                            if (_receiveEvents.TryGetValue(packet.tag, out var packetListenEvent))
+                            {
+                                packet.data.CastJsonToType();
+                                try
+                                {
+                                    packetListenEvent(edenClient.id, packet.data);
+                                }
+                                catch (Exception e) // Exception for every problem in PacketListenEvent
+                                {
+                                    _logger?.Log($"Error! Error caught in ReceiveEvent : {packet.tag} | {edenClient.id} \n {e.Message}");
+                                }
+                            }
+                            else // Exception for packet tag not registered
+                            {
+                                _logger?.Log($"Error! There is no packet tag {packet.tag} from {edenClient.id}");
+                            }
                         }
                     }
-                    else
+                    catch (Exception e) // Exception for not formed packet data
                     {
-                        if (_receiveEvents.TryGetValue(packet.tag, out var packetListenEvent))
-                        {
-                            packet.data.CastJsonToType();
-                            try { packetListenEvent(edenClient.id, packet.data); }
-                            catch (Exception e) // Exception for every problem in PacketListenEvent
-                            {
-                                _logger?.Log($"Error! Error caught in ReceiveEvent : {packet.tag} | {edenClient.id} \n {e.Message}");
-                            }
-                        }
-                        else // Exception for packet tag not registered
-                        {
-                            _logger?.Log($"Error! There is no packet tag {packet.tag} from {edenClient.id}");
-                        }
+                        _logger?.Log($"Error! Packet data is not JSON-formed on {edenClient.id}\n{e.Message}");
                     }
-                }
-                catch (Exception e) // Exception for not formed packet data
-                {
-                    _logger?.Log($"Error! Packet data is not JSON-formed on {edenClient.id}\n{e.Message}");
                 }
             }
 
-            lock (stream)
+            try
             {
-                try
+                if (stream.CanRead)
+                    stream.BeginRead(edenClient.readBuffer, 0, edenClient.readBuffer.Length, ReadBuffer, edenClient);
+                else // Exception for network stream read is not ready
                 {
-                    if (stream.CanRead)
-                        stream.BeginRead(edenClient.readBuffer, 0, edenClient.readBuffer.Length, ReadBuffer, edenClient);
-                    else // Exception for network stream read is not ready
-                    {
-                        _logger?.Log($"Error! Cannot read network stream of {edenClient.id}");
-                    }
-                }
-                catch(Exception e)
-                {
-                    _logger?.Log(e.Message);
+                    CloseClient(edenClient);
+                    _logger?.Log($"Error! Cannot read network stream of {edenClient.id}");
                 }
             }
+            catch(Exception e)
+            {
+                CloseClient(edenClient);
+                _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+            }
+        
         }
         
 
