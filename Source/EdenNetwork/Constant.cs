@@ -10,6 +10,8 @@
 		/// Constant : constant for receive request packet
 		/// </summary>
 		public const string REQUEST_PREFIX = "*r*";
+
+		public const int PACKET_LENGTH_BUFFER_SIZE = 4;
 	}
 }
 

@@ -38,6 +38,12 @@ namespace EdenNetwork
         private readonly string _ipAddress;
         private readonly int _port;
         private JsonSerializerOptions _options;
+        
+        private bool _startReadObject;
+        private int _packetLengthBufferPointer;
+        private byte[] _packetLengthBuffer;
+        private byte[] _dataObjectBuffer;
+        private int _dataObjectBufferPointer;
 
         #endregion
 
@@ -55,7 +61,14 @@ namespace EdenNetwork
             _tcpClient = null;
             _stream = null;
             _serverId = "";
+            
+            _startReadObject = false;
+            _packetLengthBufferPointer = 0;
+            _packetLengthBuffer = new byte[PACKET_LENGTH_BUFFER_SIZE];
 
+            _dataObjectBuffer = Array.Empty<byte>();
+            _dataObjectBufferPointer = 0;
+            
             this._ipAddress = ipAddress;
             this._port = port;
 
@@ -245,12 +258,7 @@ namespace EdenNetwork
                 byte[] bytes = Encoding.UTF8.GetBytes(jsonPacket);
                 byte[] sendObj = BitConverter.GetBytes(bytes.Length);
                 sendObj = sendObj.Concat(bytes).ToArray();
-
-                if (sendObj.Length >= _readBuffer.Length)
-                {
-                    _logger?.Log($"Error! Send - Too big data to send once, EdenNetProtocol support size under ({_readBuffer.Length})KB");
-                    return false;
-                }
+                
                 _stream.Write(sendObj, 0, sendObj.Length);
                 _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
                     $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
@@ -313,12 +321,7 @@ namespace EdenNetwork
                     byte[] bytes = Encoding.UTF8.GetBytes(jsonPacket);
                     byte[] sendObj = BitConverter.GetBytes(bytes.Length);
                     sendObj = sendObj.Concat(bytes).ToArray();
-
-                    if (sendObj.Length >= _readBuffer.Length)
-                    {
-                        _logger?.Log($"Error! SendAsync - Too big data to send once, EdenNetProtocol support data size under ({_readBuffer.Length})");
-                        return false;
-                    }
+                    
                     await _stream.WriteAsync(sendObj, 0, sendObj.Length);
                     _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
                         $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
@@ -747,7 +750,8 @@ namespace EdenNetwork
                 _disconnectEvent?.Invoke(_serverId);
                 return;
             }
-            if (numberOfBytes == 0)// this happens when the client is disconnected
+
+            if (numberOfBytes == 0) // this happens when the client is disconnected
             {
                 _logger?.Log($"Server disconnected. {_serverId}");
                 Close();
@@ -755,39 +759,88 @@ namespace EdenNetwork
                 return;
             }
 
+  
             int bytePointer = 0;
+            //read TCP Buffer
             while (bytePointer < numberOfBytes)
             {
-                int packetLength;
-                try
+                int remainReadBufferLength = _readBuffer.Length - bytePointer;
+                //Read Packet Length
+                if (!_startReadObject)
                 {
-                    packetLength = BitConverter.ToInt32(new ArraySegment<byte>(_readBuffer, bytePointer, 4));
+                    int remainObjectLengthBufferSize = PACKET_LENGTH_BUFFER_SIZE - _packetLengthBufferPointer;
+                    //Read Length
+                    if (remainReadBufferLength > remainObjectLengthBufferSize)
+                    {
+                        Array.Copy(_readBuffer,bytePointer, _packetLengthBuffer, _packetLengthBufferPointer, remainObjectLengthBufferSize);
+                        var packetLength = BitConverter.ToInt32(_packetLengthBuffer);
+                        _startReadObject = true;
+                        _dataObjectBuffer = new byte[packetLength];
+                        _dataObjectBufferPointer = 0;
+                        _packetLengthBufferPointer = 0;
+                        bytePointer += remainObjectLengthBufferSize;
+                        _logger?.Log(packetLength.ToString());
+                    }
+                    //Stack part of length data to buffer
+                    else
+                    {
+                        Array.Copy(_readBuffer,bytePointer, _packetLengthBuffer, _packetLengthBufferPointer, remainReadBufferLength);
+                        _packetLengthBufferPointer += remainReadBufferLength;
+                        bytePointer += remainReadBufferLength;
+                    }
                 }
-                catch (Exception e)
+                //Read Packet Data
+                if (_startReadObject)
                 {
-                    Console.WriteLine($"Error! Cannot convert packet length : " + e.Message);
-                    break;
+                    var remainPacketLength = _dataObjectBuffer.Length - _dataObjectBufferPointer;
+                    remainReadBufferLength = _readBuffer.Length - bytePointer;
+                    //Stack part of packet data to buffer
+                    if (remainPacketLength > remainReadBufferLength)
+                    {
+                        Array.Copy(_readBuffer, bytePointer, _dataObjectBuffer, _dataObjectBufferPointer, remainReadBufferLength);
+                        _dataObjectBufferPointer += remainReadBufferLength;
+                        bytePointer += remainReadBufferLength;
+                    }
+                    //Read packet data
+                    else
+                    {
+                        Array.Copy(_readBuffer, bytePointer, _dataObjectBuffer, _dataObjectBufferPointer, remainPacketLength);
+                        ReadJsonObject();
+                        bytePointer += remainPacketLength;
+                    }
                 }
-                bytePointer += 4;
-                byte[] jsonObject;
-                try
-                {
-                    jsonObject = (new ArraySegment<byte>(_readBuffer, bytePointer, packetLength).ToArray());
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Error! Cannot convert packet data : " + e.Message);
-                    break;
-                }
-                bytePointer += packetLength;
 
+            }
+            
+            try
+            {
+                if (_stream.CanRead)
+                    _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
+                else // Exception for network stream read is not ready
+                {
+                    Close();
+                    _logger?.Log($"Error! Cannot read network stream");
+                }
+            }
+            catch (Exception e)
+            {
+                Close();
+                _logger?.Log($"Error! Cannot read network stream : " + e.Message);
+            }
+
+            void ReadJsonObject()
+            {
+                _startReadObject = false;
+
+                var jsonObject = new ArraySegment<byte>(_dataObjectBuffer, 0, _dataObjectBuffer.Length).ToArray();
+                
                 try
                 {
                     var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, _options);
-                    _logger?.Log($"Recv({_serverId}/{packetLength,4}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
-
+                    _logger?.Log($"Recv({_serverId}/{jsonObject.Length,6}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
+                    
                     packet.data.CastJsonToType();
-
+                    //Process response
                     if (packet.tag.StartsWith(REQUEST_PREFIX))
                     {
                         if (_responseEvents.ContainsKey(packet.tag))
@@ -799,11 +852,11 @@ namespace EdenNetwork
                             _logger?.Log($"Error! There is no packet tag {packet.tag} from {_serverId}");
                         }
                     }
+                    //Process receive
                     else
                     {
                         if (_receiveEvents.TryGetValue(packet.tag, out var packetListenEvent))
                         {
-                            packet.data.CastJsonToType();
                             try { packetListenEvent(packet.data); }
                             catch (Exception e) // Exception for every problem in PacketListenEvent
                             {
@@ -822,12 +875,6 @@ namespace EdenNetwork
                 {
                     _logger?.Log($"Error! Packet data is not JSON-formed on {_serverId}\n{e.Message}");
                 }
-            }
-            if (_stream.CanRead)
-                _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
-            else
-            {
-                _logger?.Log($"Error! Cannot read network stream on server {_serverId}");
             }
         }
         
