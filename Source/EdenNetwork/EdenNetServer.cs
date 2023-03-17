@@ -11,7 +11,7 @@ namespace EdenNetwork
     {
         #region Pre-defined Class&Struct
         /// <summary>
-        /// Struct : struct for saving client info
+        /// class : client info
         /// </summary>
         private class EdenClient
         {
@@ -23,18 +23,16 @@ namespace EdenNetwork
                 this.readBuffer = new byte[bufferSize];
                 this.startReadObject = true;
                 this.dataObjectBuffer = Array.Empty<byte>();
-                this.packetLengthBuffer = new byte[OBJECT_LENGTH_SIZE];
+                this.packetLengthBuffer = new byte[PACKET_LENGTH_BUFFER_SIZE];
                 this.dataObjectBufferPointer = 0;
                 this.packetLengthBufferPointer = 0;
             }
-
-            public const int OBJECT_LENGTH_SIZE = 4;
-
+            
             public readonly TcpClient tcpClient;
             public readonly NetworkStream stream;
             public readonly string id;
             public readonly byte[] readBuffer;
-
+            
             public readonly byte[] packetLengthBuffer;
             public int packetLengthBufferPointer;
             
@@ -78,13 +76,13 @@ namespace EdenNetwork
         /// </summary>
         /// <param name="ipAddress">IPv4 address to open server</param>
         /// <param name="port">Port number to open server</param>
-        /// <param name="logPath">Path for log data to wrtie</param>
+        /// <param name="logPath">Path for log data to write</param>
         /// <exception cref="Exception">
         /// Two case of Exception exists
-        /// case 1. Cannot create tcplistener 
+        /// case 1. Cannot create tcp listener 
         /// case 2. Cannot open stream for log file path
         /// </exception>
-        public EdenNetServer(string ipAddress, int port, string logPath, bool printConsole = true, int flushInterval = 3*60*1000)
+        public EdenNetServer(string ipAddress, int port, string logPath, bool printConsole = true, int flushInterval = Logger.DEFAULT_FLUSH_INTERVAL)
         {
             try
             {
@@ -121,20 +119,20 @@ namespace EdenNetwork
         /// Constructor for EdenNetSerer
         /// </summary>
         /// <param name="port">Port number to open server</param>
-        /// <param name="logPath">Path for log data to wrtie</param>
+        /// <param name="logPath">Path for log data to write</param>
         ///         /// <exception cref="Exception">
         /// Two case of Exception exists
-        /// case 1. Cannot create tcplistener 
+        /// case 1. Cannot create tcp listener 
         /// case 2. Cannot open stream for log file path
         /// </exception>
-        public EdenNetServer(int port, string logPath) : this("0.0.0.0", port, logPath) { }
+        public EdenNetServer(int port, string logPath,  bool printConsole = true, int flushInterval = Logger.DEFAULT_FLUSH_INTERVAL) : this("0.0.0.0", port, logPath, printConsole, flushInterval) { }
         /// <summary>
         /// Constructor for EdenNetSerer
         /// </summary>
         /// <param name="port">Port number to open server</param>
         /// <exception cref="Exception">
         /// Two case of Exception exists
-        /// case 1. Cannot create tcplistener 
+        /// case 1. Cannot create tcp listener 
         /// case 2. Cannot open stream for log file path
         /// </exception>
         public EdenNetServer(int port) : this("0.0.0.0", port, "") { }
@@ -176,7 +174,7 @@ namespace EdenNetwork
             _acceptEvent = callback;
             _server.BeginAcceptTcpClient(Listening, null);
             
-            _logger?.Log("Eden Server is listening on  " + ipInfo.ToString());
+            _logger?.Log("Eden Server is listening on  " + ipInfo);
         }
         /// <summary>
         /// Listen and wait for client connection
@@ -195,14 +193,14 @@ namespace EdenNetwork
         /// <param name="maxAcceptNum">max number of clients to accept</param>
         public void Listen(int maxAcceptNum)
         {
-            Listen(maxAcceptNum, (string clientId) => { });
+            Listen(maxAcceptNum, _ => { });
         }
         /// <summary>
         /// Listen and wait for client connection
         /// </summary>
         public void Listen()
         {
-            Listen(INF_CLIENT_ACCEPT, (string clientId) => { });
+            Listen(INF_CLIENT_ACCEPT, _ => { });
         }
 
         /// <summary>
@@ -331,8 +329,8 @@ namespace EdenNetwork
             StopListen();
             foreach (var client in _clients.Values)
             {
-                client.stream?.Close();
-                client.tcpClient?.Close();
+                client.stream.Close();
+                client.tcpClient.Close();
             }
             _isListening = false;
             _server.Stop();
@@ -408,7 +406,7 @@ namespace EdenNetwork
         /// Broadcast data to all connected client
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="data">Edendata structured sending data</param>
+        /// <param name="data">Eden data structured sending data</param>
         public bool Broadcast(string tag, EdenData data)
         {
             foreach (var client in _clients.Values)
@@ -963,7 +961,6 @@ namespace EdenNetwork
                         edenClient.dataObjectBufferPointer = 0;
                         edenClient.packetLengthBufferPointer = 0;
                         bytePointer += remainObjectLengthBufferSize;
-                        _logger?.Log(packetLength.ToString());
                     }
                     //Stack part of length data to buffer
                     else

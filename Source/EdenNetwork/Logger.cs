@@ -2,7 +2,7 @@
 {
 	public class Logger
 	{
-		private const int DEFAULT_FLUSH_INTERVAL = 3 * 60 * 1000;
+		public const int DEFAULT_FLUSH_INTERVAL = 3 * 60 * 1000;
 		private StreamWriter? _stream;
 		private readonly bool _printConsole;
 		private readonly int _flushInterval;

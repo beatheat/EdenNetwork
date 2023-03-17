@@ -1,9 +1,7 @@
 ﻿using System.Text;
-using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using static EdenNetwork.Constant;
 
 
@@ -41,7 +39,7 @@ namespace EdenNetwork
         
         private bool _startReadObject;
         private int _packetLengthBufferPointer;
-        private byte[] _packetLengthBuffer;
+        private readonly byte[] _packetLengthBuffer;
         private byte[] _dataObjectBuffer;
         private int _dataObjectBufferPointer;
 
@@ -192,7 +190,7 @@ namespace EdenNetwork
         }
 
         /// <summary>
-        /// Connect to server asyncronously by IP, port
+        /// Connect to server asynchronously by IP, port
         /// </summary>
         /// <param name="callback">callback method execute after connection success or fail</param>
         public void BeginConnect(Action<ConnectionState> callback)
@@ -734,7 +732,7 @@ namespace EdenNetwork
         /// <param name="ar">ar.AsyncState is EdenClient which sent data</param>
         private void ReadBuffer(IAsyncResult ar)
         {
-            int numberOfBytes = 0;
+            int numberOfBytes;
             try
             {
                 numberOfBytes = _stream!.EndRead(ar);
@@ -779,7 +777,6 @@ namespace EdenNetwork
                         _dataObjectBufferPointer = 0;
                         _packetLengthBufferPointer = 0;
                         bytePointer += remainObjectLengthBufferSize;
-                        _logger?.Log(packetLength.ToString());
                     }
                     //Stack part of length data to buffer
                     else

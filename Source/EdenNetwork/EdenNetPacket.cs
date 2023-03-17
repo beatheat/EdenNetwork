@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace EdenNetwork
@@ -131,7 +130,7 @@ namespace EdenNetwork
             result = default(T)!;
             if (type == Type.SINGLE && data != null)
             { 
-                return TryParseData<T>(data, out result!, _options);
+                return TryParseData(data, out result!, _options);
             }
             return false;
         }
@@ -169,7 +168,7 @@ namespace EdenNetwork
             if (type == Type.ARRAY && _arrayData != null)
             {
                 if (idx < 0 || idx > _arrayData.Length)
-                    return TryParseData<T>(_arrayData[idx], out result!, _options);
+                    return TryParseData(_arrayData[idx], out result!, _options);
             }
             return false;
         }       
@@ -205,7 +204,7 @@ namespace EdenNetwork
             if (type == Type.DICTIONARY && _dictData != null)
             {
                 if (_dictData.TryGetValue(key, out var value))
-                    return TryParseData<T>(value, out result!, _options);
+                    return TryParseData(value, out result!, _options);
             }
             return false;
         }
@@ -225,7 +224,7 @@ namespace EdenNetwork
             }
             catch
             {
-                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data.ToString() + "\" to type : " + typeof(T).Name);
+                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data + "\" to type : " + typeof(T).Name);
             }
         }
 
@@ -264,7 +263,7 @@ namespace EdenNetwork
             }
             catch
             {
-                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data.ToString() + "\" to type : " + typeof(T).Name);
+                throw new Exception("EdenData::ParseData - cannot parse data : \"" + data + "\" to type : " + typeof(T).Name);
             }
         }
 
@@ -312,7 +311,7 @@ namespace EdenNetwork
     }
 
     /// <summary>
-    /// Struct : packet sturcture for EdenNetwork
+    /// Struct : packet structure for EdenNetwork
     /// </summary>
     public struct EdenPacket
     {
