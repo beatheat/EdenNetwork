@@ -1,4 +1,4 @@
-# EdenNetwork ![apm](https://img.shields.io/apm/l/vim-mode.svg)
+# EdenNetwork ![apm](https://img.shields.io/badge/license-MIT-green)
 Simple C# asynchronous TCP socket server&amp;client API for .NET &amp; Unity
 
 
