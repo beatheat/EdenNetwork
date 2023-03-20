@@ -1,8 +1,6 @@
 # EdenNetwork Demo
 
 Simple CLI chatting application between server and client
-build tested with Visual Studio 2022 C# .NET6.0
-
 
 # Execution Samples
 
