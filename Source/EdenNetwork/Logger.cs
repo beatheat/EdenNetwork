@@ -40,7 +40,7 @@
 			}
 			catch (Exception e)
 			{
-				throw new Exception("Logger::Load - Cannot create log stream\n" + e.Message);
+				throw new Exception("Logger::Load - Cannot create log stream", e);
 			}
 		}
 		

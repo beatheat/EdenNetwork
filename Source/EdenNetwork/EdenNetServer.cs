@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -90,7 +91,7 @@ namespace EdenNetwork
             }
             catch (Exception e)
             {
-                throw new Exception("Cannot create TcpListener on " + ipAddress + ":" + port + "\n" + e.Message);
+                throw new Exception("Cannot create TcpListener on " + ipAddress + ":" + port, e);
             }
             _clients = new Dictionary<string, EdenClient>();
             _receiveEvents = new Dictionary<string, Action<string, EdenData>>();
@@ -155,6 +156,29 @@ namespace EdenNetwork
         public void SetBufferSize(int size)
         {
             _bufferSize = DEFAULT_BUFFER_SIZE;
+        }
+
+        /// <summary>
+        /// Check specific TCP port is available
+        /// </summary>
+        /// <param name="port"></param>
+        public static bool IsPortAvailable(int port)
+        {
+            bool isAvailable = true;
+
+            var ipGlobalProperties = IPGlobalProperties.GetIPGlobalProperties();
+            var tcpConnInfoArray = ipGlobalProperties.GetActiveTcpConnections();
+
+            foreach (var tcpInfo in tcpConnInfoArray)
+            {
+                if (tcpInfo.LocalEndPoint.Port==port)
+                {
+                    isAvailable = false;
+                    break;
+                }
+            }
+
+            return isAvailable;
         }
         
         /// <summary>
