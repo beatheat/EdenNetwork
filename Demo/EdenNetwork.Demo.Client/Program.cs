@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -11,8 +11,6 @@ namespace EdenNetwork.Demo.Client
 {
     class Program
     {
-        static string client_id = "";
-
         static void Main(string[] args)
         {
             EdenNetClient client = new EdenNetClient("127.0.0.1", 7777);
@@ -23,7 +21,7 @@ namespace EdenNetwork.Demo.Client
             {
                 Console.WriteLine("Connection success");
                 //Register callback method which run after server message received
-                client.AddReceiveEvent("server_msg", (EdenData data) => {
+                client.AddReceiveEvent("serverMessage", (EdenData data) => {
                     if(data.TryGet<string>(out var testData))
                         Console.WriteLine("Server: " + testData);
                 });
@@ -35,9 +33,16 @@ namespace EdenNetwork.Demo.Client
                     string line = Console.ReadLine();
                     if (line.Equals("exit"))
                         quit = true;
+                    //Request current server time
+                    else if (line.Equals("serverTime"))
+                    {
+                        EdenData data = client.Request("serverTime", 10);
+                        if(data.TryGet<string>(out var serverTime))
+                            Console.WriteLine("Server time is " + serverTime);
+                    }
                     else
                     {
-                        client.Send("client_msg", line);
+                        client.Send("clientMessage", line);
                         Console.WriteLine("Client: " + line);
                     }
 

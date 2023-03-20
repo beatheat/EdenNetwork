@@ -11,7 +11,7 @@ namespace EdenNetwork.Demo.Server
 {
     class Program
     {
-        static string client_id = "";
+        static string clientId = "";
 
         static void Main(string[] args)
         {
@@ -19,21 +19,27 @@ namespace EdenNetwork.Demo.Server
 
             Console.WriteLine("Server is listening now...");
             //Listening clients with restriction allowing only 1 client to connect and register method which runs after client connected
-            server.Listen(1,(string client_id) => {
-                Program.client_id = client_id;
-                Console.WriteLine("Client <" + client_id + "> is connected");
+            server.Listen(1,(string clientId) => {
+                Program.clientId = clientId;
+                Console.WriteLine("Client <" + clientId + "> is connected");
             });
 
             //Block server until client connects
-            while(client_id == "")
+            while(clientId == "")
             {
                 Thread.Sleep(100);
             }
 
             //Register callback method which run after client message received
-            server.AddReceiveEvent("client_msg", (string client_id, EdenData data) => {
+            server.AddReceiveEvent("clientMessage", (string clientId, EdenData data) => {
                 if (data.TryGet<string>(out var testData))
                     Console.WriteLine("Client: " + testData);
+            });
+            
+            //Register callback method which response current server time
+            server.AddResponse("serverTime", (string clientId, EdenData data) =>
+            {
+                return new EdenData(DateTime.Now.ToString());
             });
 
             bool quit = false;
@@ -45,7 +51,7 @@ namespace EdenNetwork.Demo.Server
                     quit = true;
                 else
                 {
-                    server.Send("server_msg", client_id, line);
+                    server.Send("serverMessage", clientId, line);
                     Console.WriteLine("Server: " + line);
                 }
                 
