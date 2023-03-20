@@ -1,0 +1,21 @@
+{
+  "name": "com.beatheat.eden-network",
+  "version": "1.4.3",
+  "unity": "2021.3",
+  "unityRelease": "19f1",
+  "displayName": "EdenNetwork",
+  "description": "Simple TCP network libray",
+  "keywords": [
+    "tcp",
+    "network"
+  ],
+  "category": "network",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.0.2",
+    "com.cysharp.unitask": "2.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beatheat/EdenNetwork.git"
+  }
+}
