@@ -12,8 +12,8 @@ Unity >= 2021.3.19f1
 [nuget package](https://www.nuget.org/packages/EdenNetwork)   
 
 ### UPM
-You can add `https://github.com/beatheat/EdenNetwork/tree/main/UPMPackage/EdenNetwork` to Package Manager
-
+You can add `https://github.com/beatheat/EdenNetwork.git?path=UPMPackage/EdenNetwork` to Package Manager   
+This package has dependency on https://github.com/Cysharp/UniTask
 
 ### Documentation
 [documentation](https://github.com/beatheat/EdenNetwork/blob/main/Docs/documentation.pdf)
