@@ -22,7 +22,7 @@ namespace EdenNetwork
                 this.stream = tcpClient.GetStream();
                 this.id = id;
                 this.readBuffer = new byte[bufferSize];
-                this.startReadObject = true;
+                this.startReadObject = false;
                 this.dataObjectBuffer = Array.Empty<byte>();
                 this.packetLengthBuffer = new byte[PACKET_LENGTH_BUFFER_SIZE];
                 this.dataObjectBufferPointer = 0;
@@ -1091,6 +1091,7 @@ namespace EdenNetwork
                 catch (Exception e) // Exception for not formed packet data
                 {
                     _logger?.Log($"Error! Packet data is not JSON-formed on {edenClient.id}\n{e.Message}");
+                    _logger?.Log($"Not formatted message \n {Encoding.UTF8.GetString(edenClient.readBuffer)}");
                 }
             }
             
