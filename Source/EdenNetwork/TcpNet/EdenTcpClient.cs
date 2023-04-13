@@ -1,35 +1,47 @@
-﻿using System.Text;
+﻿using System.Net;
+using System.Text;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using static EdenNetwork.Constant;
 
 
-namespace EdenNetwork
+namespace EdenNetwork.Tcp
 {
-    /// <summary>
-    /// Enum for server connection state
-    /// </summary>
-    public enum ConnectionState
+    public class EdenTcpClient
     {
-        OK, FULL, NOT_LISTENING, ERROR
-    }
+        #region Pre-defined Class&Struct
 
-
-    public class EdenNetClient
-    {
+        /// <summary>
+        /// Receive packet 
+        /// </summary>
+        private struct Receiver
+        {
+            public bool log;
+            public Action<EdenData> receiveEvent;
+        }
+        
+        /// <summary>
+        /// Response packet
+        /// </summary>
+        private class Responser
+        {
+            public bool log;
+            public EdenData? data;
+        }
+        #endregion
         #region Fields
 
         private TcpClient? _tcpClient;
         private NetworkStream? _stream;
-        private Action<string>? _disconnectEvent;
+        private Action? _disconnectEvent;
         
         private string _serverId;
 
         private byte[] _readBuffer;
 
-        private readonly Dictionary<string, Action<EdenData>> _receiveEvents;
-        private readonly Dictionary<string, EdenData?> _responseEvents;
+        private readonly Dictionary<string, Receiver> _receiveEvents;
+        private readonly Dictionary<string, Responser> _responseEvents;
 
         private readonly Logger? _logger;
 
@@ -43,6 +55,7 @@ namespace EdenNetwork
         private byte[] _dataObjectBuffer;
         private int _dataObjectBufferPointer;
 
+        private bool _ignoreUnknownPacket;
         #endregion
 
         #region Public Methods
@@ -50,10 +63,10 @@ namespace EdenNetwork
         /// <summary>
         /// Constructor for EdenNetClient
         /// </summary>
-        public EdenNetClient(string ipAddress, int port, string logPath = "", bool printConsole = true, int flushInterval = 3*60*1000)
+        public EdenTcpClient(string ipAddress, int port, string logPath = "", bool printConsole = true, int flushInterval = 3*60*1000)
         {
-            _receiveEvents = new Dictionary<string, Action<EdenData>>();
-            _responseEvents = new Dictionary<string, EdenData?>();
+            _receiveEvents = new Dictionary<string, Receiver>();
+            _responseEvents = new Dictionary<string, Responser>();
             _readBuffer = new byte[DEFAULT_BUFFER_SIZE];
             _disconnectEvent = null;
             _tcpClient = null;
@@ -66,6 +79,8 @@ namespace EdenNetwork
 
             _dataObjectBuffer = Array.Empty<byte>();
             _dataObjectBufferPointer = 0;
+
+            _ignoreUnknownPacket = false;
             
             this._ipAddress = ipAddress;
             this._port = port;
@@ -74,7 +89,7 @@ namespace EdenNetwork
             
             _logger = null;
             if (logPath != "")
-                _logger = new Logger(logPath, "EdenNetClient", printConsole, flushInterval);
+                _logger = new Logger(logPath, printConsole, flushInterval);
         }
         
         /// <summary>
@@ -91,22 +106,64 @@ namespace EdenNetwork
         /// Set data read buffer size in bytes, default value is 8192 Bytes
         /// </summary>
         /// <param name="size">buffer size in bytes</param>
+        /// <param name="size">buffer size in bytes</param>
         public void SetBufferSize(int size)
         {
             Array.Resize(ref _readBuffer, size);
         }
 
         /// <summary>
+        /// Do not log unknown receive packets
+        /// </summary>
+        /// <param name="ignore">ignore or not</param>
+        public void SetIgnoreUnknownPacketTag(bool ignore)
+        {
+            _ignoreUnknownPacket = ignore;
+        }
+
+        /// <summary>
+        /// Get LocalEndPoint port number
+        /// </summary>
+        /// <returns></returns>
+        public int GetLocalEndPort()
+        {
+            if (_tcpClient == null) return -1;
+            return ((IPEndPoint) _tcpClient.Client.LocalEndPoint!).Port;
+        }
+        
+        /// <summary>
         /// Connect to server by IP, port
         /// </summary>
         /// <returns>returns ConnectionState of server[OK, FULL, NOT_LISTENING, ERROR]</returns>
-        public ConnectionState Connect()
+        public ConnectionState Connect(int timeout=10, int localPort = 0)
         {
             if (_tcpClient != null)
                 Close();
             try
             {
-                _tcpClient = new TcpClient(_ipAddress, _port);
+                // bind local port
+                if (localPort != 0)
+                {
+                    var host = Dns.GetHostEntry(Dns.GetHostName());
+                    foreach (var ip in host.AddressList)
+                    {
+                        if (ip.AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            IPEndPoint ipLocalEndPoint = new IPEndPoint(ip, localPort);
+                            _tcpClient = new TcpClient(ipLocalEndPoint);
+                            break;
+                        }
+                    }
+                }
+                else
+                    _tcpClient = new TcpClient();
+                
+                // _tcpClient.Connect(_ipAddress, _port);
+                var result = _tcpClient!.BeginConnect(_ipAddress, _port, null, null);
+                bool success = result.AsyncWaitHandle.WaitOne(timeout*1000, true);
+                if (success) _tcpClient.EndConnect(result);
+                else return ConnectionState.ERROR;
+                
                 _stream = _tcpClient.GetStream();
                 byte[] buffer = new byte[128];
                 _stream.Read(buffer);
@@ -145,98 +202,20 @@ namespace EdenNetwork
         /// Connect to server asynchronously by IP, port
         /// </summary>
         /// <returns>returns ConnectionState of server[OK, FULL, NOT_LISTENING, ERROR]</returns>
-        public async Task<ConnectionState> ConnectAsync()
+        public async Task<ConnectionState> ConnectAsync(int timeout=10, int localPort = 0)
         {
-            return await Task.Run(() =>
-            {
-                if (_tcpClient != null)
-                    Close();
-                try
-                {
-                    _tcpClient = new TcpClient(AddressFamily.InterNetwork);
-                    _tcpClient.Connect(_ipAddress, _port);
-                    _stream = _tcpClient.GetStream();
-                    byte[] buffer = new byte[128];
-                    _stream.Read(buffer);
-                    ConnectionState serverState = (ConnectionState)BitConverter.ToInt32(buffer);
-                    if (serverState != ConnectionState.OK)
-                    {
-                        _logger?.Log($"Cannot connect to server : SERVER IS {serverState.ToString()}");
-                        _stream.Close();
-                        _tcpClient.Close();
-                        return serverState;
-                    }
-                }
-                catch (Exception e)
-                {
-                    _logger?.Log($"Cannot connect to server : {e.Message}");
-                    return ConnectionState.ERROR;
-                }
-            
-                try
-                {
-                    _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
-                    _logger?.Log($"Connection success to {_ipAddress}:{_port}");
-                    _serverId = _ipAddress + ":" + _port;
-                }
-                catch(Exception e)
-                {
-                    _logger?.Log($"Error! Cannot read network stream : " + e.Message);
-                    Close();
-                    return ConnectionState.ERROR;
-                }
-                return ConnectionState.OK;
-            });
+            return await Task.Run(() => Connect(timeout, localPort));
         }
 
         /// <summary>
         /// Connect to server asynchronously by IP, port
         /// </summary>
         /// <param name="callback">callback method execute after connection success or fail</param>
-        public void BeginConnect(Action<ConnectionState> callback)
+        public void BeginConnect(Action<ConnectionState> callback,int timeout=10, int localPort = 0)
         {
             Task.Run(() =>
             {
-                if (_tcpClient != null)
-                    Close();
-                _serverId = _ipAddress + ":" + _port;
-                _tcpClient = new TcpClient(AddressFamily.InterNetwork);
-                try
-                {
-                    _tcpClient.Connect(_ipAddress, _port);
-                    _stream = _tcpClient.GetStream();
-
-                    byte[] buffer = new byte[128];
-                    _stream.Read(buffer);
-                    ConnectionState serverState = (ConnectionState)BitConverter.ToInt32(buffer);
-                    if (serverState != ConnectionState.OK)
-                    {
-                        _logger?.Log($"Cannot connect to server : SERVER IS {serverState.ToString()}");
-                        _stream.Close();
-                        _tcpClient.Close();
-                        callback(serverState);
-                        return;
-                    }
-                }
-                catch
-                {
-                    _logger?.Log("Cannot connect to server");
-                    callback(ConnectionState.ERROR);
-                    return;
-                }
-                try
-                {
-                    _stream.BeginRead(_readBuffer, 0, _readBuffer.Length, ReadBuffer, null);
-                    _logger?.Log($"Connection success to {_ipAddress}:{_port}");
-                    _serverId = _ipAddress + ":" + _port;
-                    callback(ConnectionState.OK);
-                }
-                catch(Exception e)
-                {
-                    _logger?.Log($"Error! Cannot read network stream : " + e.Message);
-                    Close();
-                    callback(ConnectionState.ERROR);
-                }
+                callback(Connect(timeout, localPort));
             });
 
         }
@@ -247,7 +226,8 @@ namespace EdenNetwork
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">EdenData structured sending data </param>
-        public bool Send(string tag, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public bool Send(string tag, EdenData data, bool log = true)
         {
             if (_stream is {CanWrite: true})
             {
@@ -258,8 +238,9 @@ namespace EdenNetwork
                 sendObj = sendObj.Concat(bytes).ToArray();
                 
                 _stream.Write(sendObj, 0, sendObj.Length);
-                _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
-                    $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
+                if(log)
+                    _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
+                        $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
                 return true;
             }
             else
@@ -272,33 +253,42 @@ namespace EdenNetwork
         /// Send data json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="data">object array sending data </param>
-        public bool Send(string tag, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public bool Send(string tag, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                return Send(tag, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                return Send(tag, new EdenData(data[0]));
-            }
-            else
-                return Send(tag, new EdenData(data));
+            return Send(tag, new EdenData(), log);
+        }
+
+        /// <summary>
+        /// Send data json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object sending data </param>
+        /// <param name="log">Log send packet</param>
+        public bool Send(string tag, object? data, bool log = true)
+        {
+            return Send(tag, new EdenData(data), log);
+        }
+
+        /// <summary>
+        /// Send data json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data </param>
+        /// <param name="log">Log send packet</param>
+        public bool Send(string tag, object[] data, bool log = true)
+        {
+            return Send(tag, new EdenData(data), log);
         }
         /// <summary>
         /// Send data json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">dictionary sending data </param>
-        public bool Send(string tag, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public bool Send(string tag, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-            {
-                return Send(tag, new EdenData());
-            }
-            else
-                return Send(tag, new EdenData(data));
+            return Send(tag, new EdenData(data), log);
         }
 
 
@@ -307,7 +297,8 @@ namespace EdenNetwork
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">EdenData structured sending data </param>
-        public async Task<bool> SendAsync(string tag, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public async Task<bool> SendAsync(string tag, EdenData data, bool log = true)
         {
             return await Task.Run(async () =>
             {
@@ -321,8 +312,9 @@ namespace EdenNetwork
                     sendObj = sendObj.Concat(bytes).ToArray();
                     
                     await _stream.WriteAsync(sendObj, 0, sendObj.Length);
-                    _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
-                        $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
+                    if(log)
+                        _logger?.Log($"Send({_serverId}/{bytes.Length,4}B) : [TAG] {tag} " +
+                            $"[DATA] {JsonSerializer.Serialize(data.data, _options)}");
 
                     return true;
                 }
@@ -337,33 +329,40 @@ namespace EdenNetwork
         /// Send data json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
-        /// <param name="data">object array sending data </param>
-        public async Task<bool> SendAsync(string tag, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public async Task<bool> SendAsync(string tag, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                return await SendAsync(tag, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                return await SendAsync(tag, new EdenData(data[0]));
-            }
-            else
-                return await SendAsync(tag, new EdenData(data));
+            return await SendAsync(tag, new EdenData(), log);
+        }
+        /// <summary>
+        /// Send data json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data </param>
+        /// <param name="log">Log send packet</param>
+        public async Task<bool> SendAsync(string tag, object? data, bool log = true)
+        {
+            return await SendAsync(tag, new EdenData(data), log);
+        }
+        /// <summary>
+        /// Send data json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data </param>
+        /// <param name="log">Log send packet</param>
+        public async Task<bool> SendAsync(string tag, object[] data, bool log = true)
+        {
+            return await SendAsync(tag, new EdenData(data), log);
         }
         /// <summary>
         /// Send data json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">dictionary sending data </param>
-        public async Task<bool> SendAsync(string tag, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public async Task<bool> SendAsync(string tag, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-            {
-                return await SendAsync(tag, new EdenData());
-            }
-            else
-                return await SendAsync(tag, new EdenData(data));
+            return await SendAsync(tag, new EdenData(data), log);
         }
 
 
@@ -374,9 +373,20 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success] run after data send</param>
         /// <param name="data">EdenData structured sending data</param>
-        public void BeginSend(string tag, Action<bool> callback, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Action<bool> callback, EdenData data, bool log = true)
         {
-            Task.Run(() => callback(Send(tag, data)));
+            Task.Run(() => callback(Send(tag, data, log)));
+        }
+        /// <summary>
+        /// Send data asynchronously json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="callback">callback function[bool success ] run after data send</param>
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Action<bool> callback, bool log = true)
+        {
+            BeginSend(tag, callback, new EdenData(), log);
         }
         /// <summary>
         /// Send data asynchronously json format to server
@@ -384,18 +394,21 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success ] run after data send</param>
         /// <param name="data">object array sending data</param>
-        public void BeginSend(string tag, Action<bool> callback, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Action<bool> callback, object? data, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                BeginSend(tag, callback, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                BeginSend(tag, callback, new EdenData(data[0]));
-            }
-            else
-                BeginSend(tag, callback, new EdenData(data));
+            BeginSend(tag, callback, new EdenData(data), log);
+        }
+        /// <summary>
+        /// Send data asynchronously json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="callback">callback function[bool success ] run after data send</param>
+        /// <param name="data">object array sending data</param>
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Action<bool> callback, object[] data, bool log = true)
+        {
+            BeginSend(tag, callback, new EdenData(data), log);
         }
         /// <summary>
         /// Send data asynchronously json format to server
@@ -403,51 +416,50 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="callback">callback function[bool success] run after data send</param>
         /// <param name="data">dictionary array sending data</param>
-        public void BeginSend(string tag, Action<bool> callback, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Action<bool> callback, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-                BeginSend(tag, callback, new EdenData());
-            else
-                BeginSend(tag, callback, new EdenData(data));
+            BeginSend(tag, callback, new EdenData(data), log);
         }
         /// <summary>
         /// Send data asynchronously json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">sending data</param>
-        public void BeginSend(string tag, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, EdenData data, bool log = true)
         {
-            Task.Run(() => Send(tag, data));
+            Task.Run(() => Send(tag, data, log));
         }
         /// <summary>
         /// Send data asynchronously json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">object array sending data</param>
-        public void BeginSend(string tag, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, object? data, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                BeginSend(tag, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                BeginSend(tag, new EdenData(data[0]));
-            }
-            else
-                BeginSend(tag, new EdenData(data));
+            BeginSend(tag, new EdenData(data), log);
+        }
+        /// <summary>
+        /// Send data asynchronously json format to server
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object array sending data</param>
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, object[] data, bool log = true)
+        {
+            BeginSend(tag, new EdenData(data), log);
         }
         /// <summary>
         /// Send data asynchronously json format to server
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">dictionary sending data</param>
-        public void BeginSend(string tag, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginSend(string tag, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-                BeginSend(tag, new EdenData());
-            else
-                BeginSend(tag, new EdenData(data));
+            BeginSend(tag, new EdenData(data), log);
         }
         #endregion
 
@@ -458,29 +470,53 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">EdenData structured sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public EdenData Request(string tag, int timeout, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public EdenData Request(string tag, int timeout, EdenData data, bool log = true)
         {
             tag = REQUEST_PREFIX + tag;
             if (!_responseEvents.ContainsKey(tag))
-                _responseEvents.Add(tag, null);
-            bool result = Send(tag, data);
+                _responseEvents.Add(tag, new Responser {data = null, log = log});
+            bool result = Send(tag, data, log);
             if (result == false) 
                 return EdenData.Error("ERR:Request send failed");
             double time = 0;
-            EdenData? responseData;
+            Responser responser;
             do
             {
                 Thread.Sleep(100);
                 time += 0.1;
 
-                if (_responseEvents.TryGetValue(tag, out responseData) && responseData != null)
+                if (_responseEvents.TryGetValue(tag, out responser!) && responser.data != null)
                     break;
 
             } while (timeout > time);
             _responseEvents.Remove(tag);
             if (timeout <= time) 
                 return EdenData.Error("ERR:Request timeout");
-            return responseData!.Value;
+            return responser.data!.Value;
+        }
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object sending data </param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public EdenData Request(string tag, int timeout, bool log = true)
+        {
+            return Request(tag, timeout, new EdenData(), log);
+        }
+
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object sending data </param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public EdenData Request(string tag, int timeout, object? data, bool log = true)
+        {
+            return Request(tag, timeout, new EdenData(data), log);
         }
 
         /// <summary>
@@ -489,18 +525,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">object array sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public EdenData Request(string tag, int timeout, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public EdenData Request(string tag, int timeout, object[] data, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                return Request(tag, timeout, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                return Request(tag, timeout, new EdenData(data[0]));
-            }
-            else
-                return Request(tag, timeout, new EdenData(data));
+            return Request(tag, timeout, new EdenData(data), log);
         }
 
         /// <summary>
@@ -509,12 +537,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">Dictionary sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public EdenData Request(string tag, int timeout, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public EdenData Request(string tag, int timeout, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-                return Request(tag, timeout, new EdenData());
-            else
-                return Request(tag, timeout, new EdenData(data));
+            return Request(tag, timeout, new EdenData(data), log);
         }
 
         /// <summary>
@@ -523,31 +549,56 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">EdenData structured sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public async Task<EdenData> RequestAsync(string tag, int timeout, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public async Task<EdenData> RequestAsync(string tag, int timeout, EdenData data, bool log = true)
         {
             return await Task.Run(async () =>
             {
                 tag = REQUEST_PREFIX + tag;
                 if (!_responseEvents.ContainsKey(tag))
-                    _responseEvents.Add(tag, null);
-                bool result = await SendAsync(tag, data);
+                    _responseEvents.Add(tag, new Responser{log = log, data = null});
+                bool result = await SendAsync(tag, data, log);
                 if (result == false) 
                     return EdenData.Error("ERR:Request send failed");
                 double time = 0;
-                EdenData? responseData;
+                Responser responser;
                 do
                 {
                     await Task.Delay(100);
                     time += 0.1;
 
-                    if (_responseEvents.TryGetValue(tag, out responseData) && responseData != null)
+                    if (_responseEvents.TryGetValue(tag, out responser!) && responser.data != null)
                         break;
 
                 } while (timeout > time);
                 _responseEvents.Remove(tag);
                 if (timeout <= time) return EdenData.Error("ERR:Request timeout");
-                else return responseData!.Value;
+                else return responser.data!.Value;
             });
+        }
+        
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public async Task<EdenData> RequestAsync(string tag, int timeout, bool log = true)
+        {
+            return await RequestAsync(tag, timeout, new EdenData(), log);
+        }
+
+        
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="data">object sending data </param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public async Task<EdenData> RequestAsync(string tag, int timeout, object? data, bool log = true)
+        {
+            return await RequestAsync(tag, timeout, new EdenData(data), log);
         }
 
         /// <summary>
@@ -556,18 +607,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">object array sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public async Task<EdenData> RequestAsync(string tag, int timeout, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public async Task<EdenData> RequestAsync(string tag, int timeout, object[] data, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                return await RequestAsync(tag, timeout, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                return await RequestAsync(tag, timeout, new EdenData(data[0]));
-            }
-            else
-                return await RequestAsync(tag, timeout, new EdenData(data));
+            return await RequestAsync(tag, timeout, new EdenData(data), log);
         }
 
         /// <summary>
@@ -576,13 +619,10 @@ namespace EdenNetwork
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="data">Dictionary sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public async Task<EdenData> RequestAsync(string tag, int timeout, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public async Task<EdenData> RequestAsync(string tag, int timeout, Dictionary<string, object> data, bool log = true)
         {
-            if (data == null)
-                return await RequestAsync(tag, timeout, new EdenData());
-            else
-                return await RequestAsync(tag, timeout, new EdenData(data));
-
+            return await RequestAsync(tag, timeout, new EdenData(data), log);
         }
 
 
@@ -593,52 +633,57 @@ namespace EdenNetwork
         /// <param name="response">ReceiveEvent of same packet tag</param>
         /// <param name="data">EdenData structured sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public void BeginRequest(string tag, int timeout, Action<EdenData> response, EdenData data)
+        /// <param name="log">Log send packet</param>
+        public void BeginRequest(string tag, int timeout, Action<EdenData> response, EdenData data, bool log = true)
         {
             Task.Run(() =>
             {
                 tag = REQUEST_PREFIX + tag;
                 if (!_responseEvents.ContainsKey(tag))
-                    _responseEvents.Add(tag, null);
-                bool result = Send(tag, data);
+                    _responseEvents.Add(tag, new Responser{log = log, data = null});
+                bool result = Send(tag, data, log);
                 if (result == false) 
                     response(EdenData.Error("ERR:Request send failed"));
                 double time = 0;
-                EdenData? rdata;
+                Responser responser;
                 do
                 {
                     Thread.Sleep(100);
                     time += 0.1;
 
-                    if (_responseEvents.TryGetValue(tag, out rdata) && rdata != null)
+                    if (_responseEvents.TryGetValue(tag, out responser!) && responser.data != null)
                         break;
                 } while (timeout > time);
 
                 _responseEvents.Remove(tag);
                 if (timeout <= time) response(EdenData.Error("ERR:Request timeout"));
-                else response(rdata!.Value);
+                else response(responser.data!.Value);
             });
         }
-
         /// <summary>
         ///  Request any data to server and server response 
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">EdenData structured sending data </param>
+        /// <param name="data">object sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public void BeginRequest(string tag, int timeout, Action<EdenData> response, params object[]? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginRequest(string tag, int timeout, Action<EdenData> response, bool log = true)
         {
-            if (data == null || data.Length == 0)
-            {
-                BeginRequest(tag, timeout, response, new EdenData());
-            }
-            else if (data.Length == 1)
-            {
-                BeginRequest(tag, timeout, response, new EdenData(data[0]));
-            }
-            else
-                BeginRequest(tag, timeout, response, new EdenData(data));
+            BeginRequest(tag, timeout, response, new EdenData(), log);
+        }
+        
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">object sending data </param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public void BeginRequest(string tag, int timeout, Action<EdenData> response, object? data, bool log = true)
+        {
+            BeginRequest(tag, timeout, response, new EdenData(data), log);
         }
 
         /// <summary>
@@ -646,15 +691,25 @@ namespace EdenNetwork
         /// </summary>
         /// <param name="tag">packet tag name for client to react</param>
         /// <param name="response">ReceiveEvent of same packet tag</param>
-        /// <param name="data">EdenData structured sending data </param>
+        /// <param name="data">object array sending data </param>
         /// <param name="timeout">timeout for response from server</param>
-        public void BeginRequest(string tag, int timeout, Action<EdenData> response, Dictionary<string, object>? data)
+        /// <param name="log">Log send packet</param>
+        public void BeginRequest(string tag, int timeout, Action<EdenData> response, object[] data, bool log = true)
         {
-            if (data == null)
-                BeginRequest(tag, timeout, response, new EdenData());
-            else
-                BeginRequest(tag, timeout, response, new EdenData(data));
+            BeginRequest(tag, timeout, response, new EdenData(data), log);
+        }
 
+        /// <summary>
+        ///  Request any data to server and server response 
+        /// </summary>
+        /// <param name="tag">packet tag name for client to react</param>
+        /// <param name="response">ReceiveEvent of same packet tag</param>
+        /// <param name="data">dictionary structured sending data </param>
+        /// <param name="timeout">timeout for response from server</param>
+        /// <param name="log">Log send packet</param>
+        public void BeginRequest(string tag, int timeout, Action<EdenData> response, Dictionary<string, object> data, bool log = true)
+        {
+            BeginRequest(tag, timeout, response, new EdenData(data), log);
         }
 
 
@@ -668,14 +723,15 @@ namespace EdenNetwork
         ///     event that processed by packet received <br/>
         ///     arg1 = EdenData data
         /// </param>
-        public void AddReceiveEvent(string tag, Action<EdenData> receiveEvent)
+        /// <param name="log">Log send packet</param>
+        public void AddReceiveEvent(string tag, Action<EdenData> receiveEvent, bool log = true)
         {
             if (_receiveEvents.ContainsKey(tag))
             {
                 _logger?.Log($"Error! AddReceiveEvent - receive event tag({tag}) already exists");
                 return;
             }
-            _receiveEvents.Add(tag, receiveEvent);
+            _receiveEvents.Add(tag, new Receiver{receiveEvent = receiveEvent, log = log});
         }
 
         /// <summary>
@@ -693,13 +749,12 @@ namespace EdenNetwork
         }
 
         /// <summary>
-        /// Append event activates when client connection close
+        /// Append event activates when connection close
         /// </summary>
         /// <param name="callback">
         ///     callback run after client disconnected <br/>
-        ///     arg1 = string client_id
         /// </param>
-        public void SetServerDisconnectEvent(Action<string> callback)
+        public void SetDisconnectEvent(Action callback)
         {
             _disconnectEvent = callback;
         }
@@ -707,7 +762,7 @@ namespace EdenNetwork
         /// <summary>
         /// set null to the event activates when client connection close
         /// </summary>
-        public void ReSetServerDisconnectEvent()
+        public void ReSetDisconnectEvent()
         {
             _disconnectEvent = null;
         }
@@ -745,7 +800,7 @@ namespace EdenNetwork
             {
                 _logger?.Log($"Forced disconnection from server. {_serverId}\n{e.Message}");
                 Close();
-                _disconnectEvent?.Invoke(_serverId);
+                _disconnectEvent?.Invoke();
                 return;
             }
 
@@ -753,7 +808,7 @@ namespace EdenNetwork
             {
                 _logger?.Log($"Server disconnected. {_serverId}");
                 Close();
-                _disconnectEvent?.Invoke(_serverId);
+                _disconnectEvent?.Invoke();
                 return;
             }
 
@@ -834,7 +889,6 @@ namespace EdenNetwork
                 try
                 {
                     var packet = JsonSerializer.Deserialize<EdenPacket>(jsonObject, _options);
-                    _logger?.Log($"Recv({_serverId}/{jsonObject.Length,6}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
                     
                     packet.data.CastJsonToType();
                     //Process response
@@ -842,19 +896,24 @@ namespace EdenNetwork
                     {
                         if (_responseEvents.ContainsKey(packet.tag))
                         {
-                            _responseEvents[packet.tag] = packet.data;
+                            _responseEvents[packet.tag].data = packet.data;
+                            if(_responseEvents[packet.tag].log)
+                                _logger?.Log($"Resp({_serverId}/{jsonObject.Length,6}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
                         }
                         else
                         {
-                            _logger?.Log($"Error! There is no packet tag {packet.tag} from {_serverId}");
+                            if(!_ignoreUnknownPacket)
+                                _logger?.Log($"Error! There is no packet tag {packet.tag} from {_serverId}");
                         }
                     }
                     //Process receive
                     else
                     {
-                        if (_receiveEvents.TryGetValue(packet.tag, out var packetListenEvent))
+                        if (_receiveEvents.TryGetValue(packet.tag, out var receiver))
                         {
-                            try { packetListenEvent(packet.data); }
+                            if(receiver.log)
+                                _logger?.Log($"Recv({_serverId}/{jsonObject.Length,6}B) : [TAG] {packet.tag} [DATA] {packet.data.data}");
+                            try { receiver.receiveEvent(packet.data); }
                             catch (Exception e) // Exception for every problem in PacketListenEvent
                             {
                                 _logger?.Log($"Error! Error caught in ReceiveEvent : {packet.tag} | {_serverId} \n {e.Message}");
@@ -862,7 +921,8 @@ namespace EdenNetwork
                         }
                         else
                         {
-                            _logger?.Log($"Error! There is no packet tag {packet.tag} from {_serverId}");
+                            if(!_ignoreUnknownPacket)
+                                _logger?.Log($"Error! There is no packet tag {packet.tag} from {_serverId}");
                         }
                     }
 
@@ -871,6 +931,7 @@ namespace EdenNetwork
                 catch (Exception e)
                 {
                     _logger?.Log($"Error! Packet data is not JSON-formed on {_serverId}\n{e.Message}");
+                    _logger?.Log($"Not formatted message \n {Encoding.UTF8.GetString(_readBuffer)}");
                 }
             }
         }

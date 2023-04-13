@@ -14,6 +14,8 @@
 		/// Constant : size of packet length field
 		/// </summary>
 		public const int PACKET_LENGTH_BUFFER_SIZE = 4;
+
+		public const string DEFAULT_KEY = "$";
 		
 	}
 }

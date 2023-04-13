@@ -3,21 +3,21 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.4.4</Version>
+    <Version>2.0.0</Version>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Authors>beatheat</Authors>
-    <Description>Simple C# TCP socket server&amp;client API for .NET &amp; Unity
+    <Description>Simple C# TCP/UDP socket server&amp;client API for .NET &amp; Unity
 
 </Description>
     <Copyright>Copyright 2022.beatheat All rights reserved.</Copyright>
     <RepositoryUrl>https://github.com/beatheat/EdenNetwork</RepositoryUrl>
-    <PackageTags>TCP socket </PackageTags>
+    <PackageTags>TCP, UDP, socket</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <FileVersion>1.0.0.0</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <PackageReleaseNotes>fix: fix server receive error</PackageReleaseNotes>
+    <PackageReleaseNotes>feat: UDP socket server transmission</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -29,5 +29,9 @@
     <WarningLevel>3</WarningLevel>
     <DefineConstants>RELEASE; TRACE</DefineConstants>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LiteNetLib" Version="1.0.1.1" />
+  </ItemGroup>
 
 </Project>

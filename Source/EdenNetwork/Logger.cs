@@ -17,16 +17,16 @@
         /// <param name="printConsole">whether log is printed on console</param>
         /// <param name="flushInterval">interval of stream flush in millisecond</param>
         /// <exception cref="Exception">Cannot create log stream Exception</exception>
-        public Logger(string path, string name, bool printConsole = true, int flushInterval = DEFAULT_FLUSH_INTERVAL)
+        public Logger(string path, bool printConsole = true, int flushInterval = DEFAULT_FLUSH_INTERVAL)
 		{
 			this._printConsole = printConsole;
 			this._flushInterval = flushInterval;
-			this._name = name;
+			this._name = Path.GetFileNameWithoutExtension(path);
 			_logQueue = new Queue<string>();
 			try
 			{
 				if(_printConsole)
-					Console.WriteLine($"[{name}] Opening log stream...");
+					Console.WriteLine($"[{_name}] Opening log stream...");
 				_stream = new StreamWriter(path, append: true);
 				var loggerThread = new Thread(LoggerLoop); 
 				loggerThread.Start();
@@ -35,7 +35,7 @@
 				if (_printConsole)
 				{
 					ClearLine();
-					Console.WriteLine($"[{name}] Log stream opened. Log thread is running");
+					Console.WriteLine($"[{_name}] Log stream opened. Log thread is running");
 				}
 			}
 			catch (Exception e)
@@ -98,9 +98,12 @@
 		/// </summary>
 		public void Log(string log)
 		{
-			_logQueue.Enqueue(log);
-			if (_printConsole)
-				Console.WriteLine($"[{_name}] " + log);
+			lock (this)
+			{
+				_logQueue.Enqueue(log);
+				if (_printConsole)
+					Console.WriteLine($"[{_name}] " + log);
+			}
 		}
 		
 		/// <summary>
@@ -108,11 +111,14 @@
 		/// </summary>
 		public void LogWithClear(string log)
 		{
-			_logQueue.Enqueue(log);
-			if (_printConsole)
+			lock (this)
 			{
-				ClearLine();
-				Console.WriteLine($"[{_name}] " + log);
+				_logQueue.Enqueue(log);
+				if (_printConsole)
+				{
+					ClearLine();
+					Console.WriteLine($"[{_name}] " + log);
+				}
 			}
 		}
 	}
