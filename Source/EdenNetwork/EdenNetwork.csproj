@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>2.0.0</Version>
+    <Version>2.0.5</Version>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Authors>beatheat</Authors>
@@ -17,7 +17,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <FileVersion>1.0.0.0</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <PackageReleaseNotes>feat: UDP socket server transmission</PackageReleaseNotes>
+    <PackageReleaseNotes>fix: NAT punching local &amp; remote endpoint swapping error fix</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -32,6 +32,9 @@
 
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="1.0.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+    <PackageReference Include="protobuf-net" Version="3.2.16" />
+    <PackageReference Include="ZLogger" Version="1.7.0" />
   </ItemGroup>
 
 </Project>

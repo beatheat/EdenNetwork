@@ -11,53 +11,76 @@ namespace EdenNetwork.Demo.Server
 {
     class Program
     {
-        static string clientId = "";
 
+        public class Messenger
+        {
+            private IEdenNetServer server;
+
+            private PeerId? clientId = null;
+            
+            public void Start(IEdenNetServer server)
+            {
+                this.server = server;
+                server.AddEndpoints(this);
+                Console.WriteLine("Server is listening now...");
+                server.Listen(1);
+                
+                MainLoop();
+            }
+
+            [EdenClientConnect]
+            public void ClientConnect(PeerId clientId)
+            {
+                this.clientId = clientId;
+                Console.WriteLine("Client <" + clientId + "> is connected");
+            }
+            
+            [EdenClientDisconnect]
+            public void ClientDisconnect(PeerId clientId)
+            {
+                this.clientId = clientId;
+                Console.WriteLine("Client <" + clientId + "> is disconnected");
+            }
+
+            [EdenReceive]
+            public void ClientMessage(PeerId clientId, string message)
+            {
+                Console.WriteLine("Client : " + message);
+            }
+
+            [EdenResponse]
+            public DateTime ServerTime(PeerId clientId)
+            {
+                return DateTime.Now;
+            }
+
+            public void MainLoop()
+            {
+                bool quit = false;
+                //main loop
+                while (!quit)
+                {
+                    string line = Console.ReadLine();
+                    if (line.Equals("exit")) 
+                        quit = true;
+                    else
+                    {
+                        if (clientId != null)
+                        {
+                            server.Send("ServerMessage", clientId.Value, line);
+                            Console.WriteLine("Server: " + line);
+                        }
+                    }
+                
+                }
+                server.Close();;
+            }
+        }
+        
         static void Main(string[] args)
         {
-            EdenNetServer server = new EdenNetServer(7777);
-
-            Console.WriteLine("Server is listening now...");
-            //Listening clients with restriction allowing only 1 client to connect and register method which runs after client connected
-            server.Listen(1,(string clientId) => {
-                Program.clientId = clientId;
-                Console.WriteLine("Client <" + clientId + "> is connected");
-            });
-
-            //Block server until client connects
-            while(clientId == "")
-            {
-                Thread.Sleep(100);
-            }
-
-            //Register callback method which run after client message received
-            server.AddReceiveEvent("clientMessage", (string clientId, EdenData data) => {
-                if (data.TryGet<string>(out var testData))
-                    Console.WriteLine("Client: " + testData);
-            });
-            
-            //Register callback method which response current server time
-            server.AddResponse("serverTime", (string clientId, EdenData data) =>
-            {
-                return new EdenData(DateTime.Now.ToString());
-            });
-
-            bool quit = false;
-            //main loop
-            while (!quit)
-            {
-                string line = Console.ReadLine();
-                if (line.Equals("exit")) 
-                    quit = true;
-                else
-                {
-                    server.Send("serverMessage", clientId, line);
-                    Console.WriteLine("Server: " + line);
-                }
-                
-            }
-
-            server.Close();
+            var messenger = new Messenger();
+            messenger.Start(new EdenUdpServer(7777));
         }
     }
 }
