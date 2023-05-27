@@ -11,21 +11,35 @@ namespace EdenNetwork.Demo.Client
 {
     class Program
     {
-        static void Main(string[] args)
+        public class Messenger
         {
-            EdenNetClient client = new EdenNetClient("127.0.0.1", 7777);
+            private IEdenNetClient client;
 
-            ConnectionState cstate = client.Connect();
-            //Run program if connection state is ok
-            if (cstate == ConnectionState.OK)
+            public void Start()
             {
-                Console.WriteLine("Connection success");
-                //Register callback method which run after server message received
-                client.AddReceiveEvent("serverMessage", (EdenData data) => {
-                    if(data.TryGet<string>(out var testData))
-                        Console.WriteLine("Server: " + testData);
-                });
+                client = new EdenTcpClient("127.0.0.1", 7777);
+                
+                client.AddEndpoints(this);
+                
+                if (client.Connect() == ConnectionState.OK)
+                {
+                    Console.WriteLine("Connection success");
+                    MainLoop();
+                }
+                else
+                {
+                    Console.WriteLine("Connection fail");
+                }
+            }
+            
+            [EdenReceive]
+            private void ServerMessage(string message)
+            {
+                Console.WriteLine("Server: " + message);
+            }
 
+            public void MainLoop()
+            {
                 bool quit = false;
                 //main loop
                 while (!quit)
@@ -34,24 +48,28 @@ namespace EdenNetwork.Demo.Client
                     if (line.Equals("exit"))
                         quit = true;
                     //Request current server time
-                    else if (line.Equals("serverTime"))
+                    else if (line.Equals("ServerTime"))
                     {
-                        EdenData data = client.Request("serverTime", 10);
-                        if(data.TryGet<string>(out var serverTime))
-                            Console.WriteLine("Server time is " + serverTime);
+                        var serverTime = client.Request<DateTime>("ServerTime");
+                        Console.WriteLine("Server time is " + serverTime);
                     }
                     else
                     {
-                        client.Send("clientMessage", line);
+                        client.Send("ClientMessage", line);
                         Console.WriteLine("Client: " + line);
                     }
 
                 }
+                client.Close();
             }
-            else
-                Console.WriteLine("Connection failed");
 
-            client.Close();
+        }
+        
+
+        static void Main(string[] args)
+        {
+            var messenger = new Messenger();
+            messenger.Start();
         }
     }
 }

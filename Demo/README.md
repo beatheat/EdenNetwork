@@ -1,4 +1,4 @@
-# EdenNetwork Demo
+# Simple Chatting Demo
 
 Simple CLI chatting application between server and client
 
