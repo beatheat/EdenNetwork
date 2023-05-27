@@ -43,7 +43,7 @@ internal class EdenClientDispatcher
 				var endpoint = new Endpoint {Onwer = endpointObject, Logic = methodInfo};
 				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
 				{
-					endpoint.Type = ValidateReceiveMethod(methodInfo);
+					endpoint.ArgumentType = ValidateReceiveMethod(methodInfo);
 					if (_receiveEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -91,9 +91,9 @@ internal class EdenClientDispatcher
 		// Ignore Unknown API
 		if (!_receiveEndpoints.TryGetValue(packet.Tag, out var endpoint))
 			return;
-		if (endpoint.Type != null)
+		if (endpoint.ArgumentType != null)
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.Type);
+			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
 			endpoint.Logic.Invoke(endpoint.Onwer, new[] {packetData});
 		}

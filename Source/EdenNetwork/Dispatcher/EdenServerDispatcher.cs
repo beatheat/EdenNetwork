@@ -41,7 +41,7 @@ internal class EdenServerDispatcher
 				var endpoint = new Endpoint {Onwer = endpointObject, Logic = methodInfo};
 				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
 				{
-					endpoint.Type = ValidateReceiveResponseMethod(methodInfo);
+					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
 					if (_receiveEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -49,7 +49,7 @@ internal class EdenServerDispatcher
 				}
 				else if (methodInfo.GetCustomAttribute(typeof(EdenResponseAttribute)) != null)
 				{
-					endpoint.Type = ValidateReceiveResponseMethod(methodInfo);
+					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
 					if (_responseEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -117,10 +117,10 @@ internal class EdenServerDispatcher
 		// Ignore Unknown Packet
 		if (!_receiveEndpoints.TryGetValue(packet.Tag, out var endpoint))
 			return;
-		
-		if (endpoint.Type != null)
+
+		if (endpoint.ArgumentType != null)
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.Type);
+			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
 			endpoint.Logic.Invoke(endpoint.Onwer, new[] {peerId, packetData});
 		}
@@ -137,9 +137,9 @@ internal class EdenServerDispatcher
 			return null;
 
 		object? responseData;
-		if (endpoint.Type != null)
+		if (endpoint.ArgumentType != null)
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.Type);
+			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
 			responseData = endpoint.Logic.Invoke(endpoint.Onwer, new[] {peerId, packetData});
 		}
