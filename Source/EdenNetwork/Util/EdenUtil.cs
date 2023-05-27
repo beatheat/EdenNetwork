@@ -2,7 +2,7 @@
 
 namespace EdenNetwork;
 
-public class EdenUtil
+public static class EdenUtil
 {
 	public static bool IsPortAvailable(int port)
 	{
