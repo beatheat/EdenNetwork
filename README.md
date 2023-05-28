@@ -1,5 +1,5 @@
 # EdenNetwork ![apm](https://img.shields.io/badge/license-MIT-green)
-Simple C# asynchronous TCP&UDP socket server&amp;client API for .NET &amp; Unity
+Simple C# asynchronous TCP&UDP socket server&amp;client library for .NET &amp; Unity
 
 ### Required Version
 .net 6.0 & c# 10.0   
