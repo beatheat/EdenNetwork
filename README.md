@@ -20,7 +20,7 @@ You can add `https://github.com/beatheat/EdenNetwork.git?path=UPMPackage/EdenNet
 This package has dependency on https://github.com/Cysharp/UniTask
 
 ### Documentation (Korean)
-[documentation](https://github.com/beatheat/EdenNetwork/blob/main/Docs/documentation.pdf)
+[documentation](https://github.com/beatheat/EdenNetwork/blob/main/Docs/EdenNetwork_Documentation.pdf)
 
 
 ### Demo
