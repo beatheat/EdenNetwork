@@ -51,7 +51,7 @@ class Endpoint
 }
 
 EdenTcpServer server = new EdenTcpServer(12121);
-server.AddEndpoint(new Endpoint());
+server.AddEndpoint(new Endpoint(server));
 // Listen on other thread 
 server.Listen(1);
 
