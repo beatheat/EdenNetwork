@@ -230,7 +230,7 @@ internal class EdenServerDispatcher
 	private void ValidateNatRelayMethod(MethodInfo methodInfo)
 	{
 		var parameterInfos = methodInfo.GetParameters();
-		if (parameterInfos.Length != 1)
+		if (parameterInfos.Length != 2)
 		{
 			throw new EdenDispatcherException($"Invalid NAT Relay Method : Wrong Parameter Count - Method Name : {methodInfo.Name}");
 		}
@@ -239,6 +239,13 @@ internal class EdenServerDispatcher
 		{
 			throw new EdenDispatcherException($"Invalid NAT Relay Method : Wrong Parameter Type - Method Name : {methodInfo.Name}");
 		}
+		
+		
+		if (parameterInfos[1].ParameterType != typeof(string))
+		{
+			throw new EdenDispatcherException($"Invalid NAT Relay Method : Wrong Parameter Type - Method Name : {methodInfo.Name}");
+		}
+
 
 		if (methodInfo.ReturnType != typeof(NatPeer))
 		{

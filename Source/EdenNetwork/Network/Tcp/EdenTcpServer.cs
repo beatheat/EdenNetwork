@@ -115,7 +115,7 @@ public class EdenTcpServer : IEdenNetServer
 	{
 		foreach (var client in _clients.Values)
 		{
-			if(client.PeerId != clientId)
+			if(client.ServerId != clientId)
 				client.Send(tag, data);
 		}
 	}

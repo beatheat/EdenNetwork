@@ -108,31 +108,30 @@ public class EdenUdpServer : IEdenNetServer
 				return;
 			}
 
-			EdenPacket packet;
 			try
 			{
-				packet = _serializer.Deserialize(packetBytes);
+				var packet = _serializer.Deserialize(packetBytes);
+				if (packet.Type == EdenPacketType.Request)
+				{
+					var responseData = _dispatcher.DispatchRequestPacket(clientId, packet);
+					_logger?.LogRequestFrom(clientId, packet);
+					Response(packet.Tag, clientId, responseData);
+				}
+				else if (packet.Type == EdenPacketType.Send)
+				{
+
+					_dispatcher.DispatchSendPacket(clientId, packet);
+					_logger?.LogReceive(clientId, packet);
+				}
+				else
+				{
+					_logger?.LogUnformattedPacketError(clientId);
+					return;
+				}
 			}
 			catch (Exception e)
 			{
 				_logger?.LogUnformattedPacketError(clientId, e);
-				return;
-			}
-
-			if (packet.Type == EdenPacketType.Request)
-			{
-				var responseData = _dispatcher.DispatchRequestPacket(clientId, packet);
-				_logger?.LogRequestFrom(clientId, packet);
-				Response(packet.Tag,clientId, responseData);
-			}
-			else if(packet.Type == EdenPacketType.Send)
-			{
-				_dispatcher.DispatchSendPacket(clientId, packet);
-				_logger?.LogReceive(clientId, packet);
-			}
-			else
-			{
-				_logger?.LogUnformattedPacketError(clientId);
 				return;
 			}
 		}
@@ -261,7 +260,7 @@ public class EdenUdpServer : IEdenNetServer
 		return await Task.Run(() => RequestNatHolePunching(address,port,additionalData,timeout));
 	}
 	
-	public void SetNatRequestListener(Func<NatPeer, NatPeer?> natRequestEvent)
+	public void SetNatRequestListener()
 	{
 		_netManager.NatPunchEnabled = true;
 		_netManager.NatPunchModule.UnsyncedEvents = true;

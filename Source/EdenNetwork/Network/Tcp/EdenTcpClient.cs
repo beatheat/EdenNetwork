@@ -67,7 +67,7 @@ public class EdenTcpClient : IEdenNetClient
 				return ConnectionState.TIMEOUT;
 			}
 		}
-		catch (Exception e)
+		catch 
 		{
 			return ConnectionState.FAIL;
 		}
@@ -156,32 +156,32 @@ public class EdenTcpClient : IEdenNetClient
 
 		void NetworkReceive(byte[] serializedPacket, int packetLength)
 		{
-			EdenPacket packet;
 			try
 			{
-				packet = _serializer.Deserialize(serializedPacket, packetLength);
+				var packet = _serializer.Deserialize(serializedPacket, packetLength);
+				if (packet.Type == EdenPacketType.Response)
+				{
+					_dispatcher.DispatchResponsePacket(packet);
+					_logger?.LogResponseFrom(_serverId, packet);
+				}
+				else if(packet.Type == EdenPacketType.Send)
+				{
+					_dispatcher.DispatchSendPacket(packet);
+					_logger?.LogReceive(_serverId, packet);
+				}
+				else
+				{
+					//Ignore Not Formatted Packet
+					_logger?.LogUnformattedPacketError(_serverId);
+					return;
+				}
 			}
 			catch (Exception e)
 			{
 				_logger?.LogUnformattedPacketError(_serverId, e);
 				return;
 			}
-			if (packet.Type == EdenPacketType.Response)
-			{
-				_dispatcher.DispatchResponsePacket(packet);
-				_logger?.LogResponseFrom(_serverId, packet);
-			}
-			else if(packet.Type == EdenPacketType.Send)
-			{
-				_dispatcher.DispatchSendPacket(packet);
-				_logger?.LogReceive(_serverId, packet);
-			}
-			else
-			{
-				//Ignore Not Formatted Packet
-				_logger?.LogUnformattedPacketError(_serverId);
-				return;
-			}
+
 		}
 	}
 }

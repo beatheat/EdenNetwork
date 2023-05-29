@@ -127,32 +127,31 @@ public class EdenUdpClient : IEdenNetClient
 				return;
 			}
 
-			EdenPacket packet;
 			try
 			{
-				packet = _serializer.Deserialize(packetBytes);
+				var packet = _serializer.Deserialize(packetBytes);
+				if (packet.Type == EdenPacketType.Response)
+				{
+					_dispatcher.DispatchResponsePacket(packet);
+					_logger?.LogResponseFrom(serverId, packet);
+				}
+				else if(packet.Type == EdenPacketType.Send)
+				{
+					_dispatcher.DispatchSendPacket(packet);
+					_logger?.LogReceive(serverId, packet);
+				}
+				else
+				{
+					_logger?.LogUnformattedPacketError(serverId);
+					return;
+				}
 			}
 			catch (Exception e)
 			{
 				_logger?.LogUnformattedPacketError(serverId, e);
 				return;
 			}
-		
-			if (packet.Type == EdenPacketType.Response)
-			{
-				_dispatcher.DispatchResponsePacket(packet);
-				_logger?.LogResponseFrom(serverId, packet);
-			}
-			else if(packet.Type == EdenPacketType.Send)
-			{
-				_dispatcher.DispatchSendPacket(packet);
-				_logger?.LogReceive(serverId, packet);
-			}
-			else
-			{
-				_logger?.LogUnformattedPacketError(serverId);
-				return;
-			}
+
 		}
 	}
 
