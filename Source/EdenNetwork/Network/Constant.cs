@@ -1,8 +1,7 @@
-﻿namespace EdenNetwork
+﻿namespace EdenNetwork;
+
+public static class Constant
 {
-	public static class Constant
-	{
-		public const double DEFAULT_TIMEOUT = 10.0;
-	}
+	public const double DEFAULT_TIMEOUT = 10.0;
 }
 

@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-
-namespace EdenNetwork.Log;
+﻿namespace EdenNetwork.Log;
 
 
 public static class EdenLogManager

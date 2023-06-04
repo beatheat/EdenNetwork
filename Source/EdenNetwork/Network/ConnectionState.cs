@@ -2,10 +2,10 @@
 
 public enum ConnectionState
 {
-	DISCONNECT,
-	OK,
-	FULL,
-	FAIL,
-	TIMEOUT,
-	ERROR
+	Disconnect,
+	Ok,
+	Full,
+	Fail,
+	Timeout,
+	Error
 }

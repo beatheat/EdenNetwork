@@ -131,4 +131,4 @@ internal class TcpPeer
 		_tcpClient.GetStream().Close();
 		_tcpClient.Close();
 	}
-};
+}
