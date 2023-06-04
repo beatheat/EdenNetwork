@@ -1,12 +1,9 @@
 {
-    "name": "EdenNetworkAssembly",
-    "rootNamespace": "",
-    "references": [
-        "UniTask"
-    ],
+    "name": "LiteNetLib",
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
