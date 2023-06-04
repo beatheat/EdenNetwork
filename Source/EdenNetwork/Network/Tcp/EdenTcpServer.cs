@@ -18,15 +18,20 @@ public class EdenTcpServer : IEdenNetServer
 	
 	private bool _isListening;
 
-	private readonly ILogger? _logger;
+	private readonly ILogger<EdenTcpServer>? _logger;
 	
-	public EdenTcpServer(string address, int port, ILogger? logger = null)
+	public EdenTcpServer(string address, int port, string logPath)
 	{
 		_server = new TcpListener(IPEndPoint.Parse($"{address}:{port}"));
 		_clients = new Dictionary<PeerId, TcpPeer>();
 		_serializer = new EdenPacketSerializer(new EdenDataSerializer());
 		_dispatcher = new EdenServerDispatcher(_serializer);
-		_logger = logger;
+		var loggerFactory = LoggerFactory.Create(builder =>
+		{
+			builder.ClearProviders();
+			builder.
+		});
+		_logger = loggerFactory.CreateLogger<EdenTcpServer>();
 	}
 	
 	public EdenTcpServer(int port, ILogger? logger = null) : this("0.0.0.0", port, logger) {}
