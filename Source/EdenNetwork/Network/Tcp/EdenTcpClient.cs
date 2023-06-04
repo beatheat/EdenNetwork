@@ -63,18 +63,18 @@ public class EdenTcpClient : IEdenNetClient
 		{
 			if (!_peer.ConnectAsync(_serverId.Ip,_serverId.Port).Wait((int) (timeout * 1000)))
 			{
-				return ConnectionState.TIMEOUT;
+				return ConnectionState.Timeout;
 			}
 		}
 		catch 
 		{
-			return ConnectionState.FAIL;
+			return ConnectionState.Fail;
 		}
 
 		var buffer = new byte[4];
 		_peer.GetStream().Read(buffer);
 		var serverState = (ConnectionState) BitConverter.ToInt32(buffer);
-		if (serverState == ConnectionState.OK)
+		if (serverState == ConnectionState.Ok)
 		{
 			BeginReceive();
 		}

@@ -57,7 +57,7 @@ public class EdenTcpServer : IEdenNetServer
 				var tcpClient = _server.AcceptTcpClient();
 				if (_clients.Count > maxAcceptNum)
 				{
-					tcpClient.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.FULL));
+					tcpClient.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.Full));
 					tcpClient.GetStream().Close();
 					tcpClient.Close();
 					return;
@@ -69,7 +69,7 @@ public class EdenTcpServer : IEdenNetServer
 				_clients.Add(clientId, tcpPeer);
 				_dispatcher.DispatchConnectMessage(clientId);
 				tcpPeer.BeginReceive();
-				tcpClient.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.OK));
+				tcpClient.GetStream().Write(BitConverter.GetBytes((int) ConnectionState.Ok));
 				
 				_logger?.LogConnect(clientId);
 			}

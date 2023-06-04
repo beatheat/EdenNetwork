@@ -87,7 +87,7 @@ public class EdenUdpClient : IEdenNetClient
 		_listener.NetworkReceiveEvent += NetworkReceive;
 		_netManager.MaxConnectAttempts = (int) (timeout * 1000) / _netManager.ReconnectDelay;
 
-		ConnectionState connectionState = ConnectionState.TIMEOUT;
+		ConnectionState connectionState = ConnectionState.Timeout;
 		bool connectResponded = false;
 		
 		_netManager.Connect(_serverId.Ip, _serverId.Port, "");
@@ -98,7 +98,7 @@ public class EdenUdpClient : IEdenNetClient
 		void PeerConnect(NetPeer peer)
 		{
 			connectResponded = true;
-			connectionState = ConnectionState.OK;
+			connectionState = ConnectionState.Ok;
 			_peer = peer;
 			_logger?.LogConnect(new PeerId(peer.EndPoint));
 		}
@@ -108,7 +108,7 @@ public class EdenUdpClient : IEdenNetClient
 			connectResponded = true;
 			if (info.Reason == LiteNetLib.DisconnectReason.ConnectionFailed)
 			{
-				connectionState = ConnectionState.FAIL;
+				connectionState = ConnectionState.Fail;
 			}
 			else
 			{

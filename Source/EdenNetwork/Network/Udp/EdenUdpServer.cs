@@ -72,7 +72,7 @@ public class EdenUdpServer : IEdenNetServer
 			if (_netManager.ConnectedPeersCount > maxAcceptNum)
 			{
 				var writer = new NetDataWriter();
-				writer.Put((byte) ConnectionState.FULL);
+				writer.Put((byte) ConnectionState.Full);
 				peer.Disconnect(writer);
 			}
 
@@ -197,7 +197,7 @@ public class EdenUdpServer : IEdenNetServer
 
 	public void BroadcastExcept(string tag, PeerId clientId, object? data = null)
 	{
-		if (_clients.TryGetValue(clientId, out var exceptPeer))
+		if (_clients.TryGetValue(clientId, out var exceptPeer) == false)
 		{
 			throw new EdenNetworkException("Peer is Not Connected");
 		}
