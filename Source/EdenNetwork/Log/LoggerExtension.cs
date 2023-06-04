@@ -1,69 +1,56 @@
 ﻿using EdenNetwork.Packet;
-using Microsoft.Extensions.Logging;
-using ZLogger;
 
 namespace EdenNetwork.Log;
 
 public static class LoggerExtension
 {
-
-	public static void LogConnect(this ILogger logger, PeerId peerId)
+	public static void LogConnect(this Logger logger, PeerId peerId)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.Connect, "Connect"),
-			new {RemoteAddress = peerId}, $"{peerId} Connected");
+		logger.Log(NetworkEventType.Connect, new {RemoteAddress = peerId}, $"{peerId} Connected");
 	}
 	
-	public static void LogDisconnect(this ILogger logger, PeerId peerId)
+	public static void LogDisconnect(this Logger logger, PeerId peerId)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.Disconnect, "Disconnect"),
-			new {RemoteAddress = peerId}, $"{peerId} Disconnected");
+		logger.Log(NetworkEventType.Disconnect, new {RemoteAddress = peerId}, $"{peerId} Disconnected");
 	}
 	
-	public static void LogSend(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogSend(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.Send, "Send"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Send To {peerId}");
+		logger.Log(NetworkEventType.Send, new {RemoteAddress = peerId, Packet = packet}, $"Data Send To {peerId}");
 	}
 	
-	public static void LogRequestTo(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogRequestTo(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.RequestTo, "RequestTo"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Request To {peerId}");
+		logger.Log(NetworkEventType.RequestTo, new {RemoteAddress = peerId, Packet = packet}, $"Data Request To {peerId}");
 	}
 	
-	public static void LogRequestFrom(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogRequestFrom(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.RequestFrom, "Request From"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Request From {peerId}");
+		logger.Log(NetworkEventType.RequestFrom, new {RemoteAddress = peerId, Packet = packet}, $"Data Request From {peerId}");
 	}
 
-	public static void LogReceive(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogReceive(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.Receive, "Connection"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Receive From {peerId}");
+		logger.Log(NetworkEventType.Receive, new {RemoteAddress = peerId, Packet = packet}, $"Data Receive From {peerId}");
 	}
 	
-	public static void LogResponseTo(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogResponseTo(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.ResponseTo, "ResponseTo"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Response To {peerId}");
+		logger.Log(NetworkEventType.ResponseTo, new {RemoteAddress = peerId, Packet = packet}, $"Data Response To {peerId}");
 	}
 	
-	public static void LogResponseFrom(this ILogger logger, PeerId peerId, EdenPacket packet)
+	public static void LogResponseFrom(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.ZLogInformationWithPayload(new EventId((int)LogEvent.ResponseFrom, "ResponseFrom"),
-			new {RemoteAddress = peerId, Packet = packet}, $"Data Response From {peerId}");
+		logger.Log(NetworkEventType.ResponseFrom, new {RemoteAddress = peerId, Packet = packet}, $"Data Response From {peerId}");
 	}
 
-	public static void LogUnformattedPacketError(this ILogger logger, PeerId peerId)
+	public static void LogUnformattedPacketError(this Logger logger, PeerId peerId)
 	{
-		logger.ZLogErrorWithPayload(new EventId((int)LogEvent.NotFormattedPacket, "NotFormattedPacket"),
-			new {RemoteAddress = peerId}, $"Not Formatted Packet From {peerId}");
+		logger.LogError(NetworkEventType.NotFormattedPacket, new {RemoteAddress = peerId}, $"Not Formatted Packet From {peerId}");
 	}
 	
-	public static void LogUnformattedPacketError(this ILogger logger, PeerId peerId, Exception e)
+	public static void LogUnformattedPacketError(this Logger logger, PeerId peerId, Exception e)
 	{
-		logger.ZLogErrorWithPayload(new EventId((int) LogEvent.NotFormattedPacket), e, 
-			new {RemoteAddress = peerId}, $"Not Formatted Packet From {peerId}");
+		logger.LogError(NetworkEventType.NotFormattedPacket, new {RemoteAddress = peerId}, $"Not Formatted Packet From {peerId}", e);
 	}
 }

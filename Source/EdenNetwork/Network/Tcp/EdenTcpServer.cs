@@ -4,7 +4,6 @@ using EdenNetwork.Dispatcher;
 using EdenNetwork.EdenException;
 using EdenNetwork.Log;
 using EdenNetwork.Packet;
-using Microsoft.Extensions.Logging;
 
 namespace EdenNetwork;
 
@@ -18,7 +17,7 @@ public class EdenTcpServer : IEdenNetServer
 	
 	private bool _isListening;
 
-	private readonly ILogger? _logger;
+	private readonly Logger? _logger;
 	
 	public EdenTcpServer(string address, int port)
 	{
@@ -26,7 +25,7 @@ public class EdenTcpServer : IEdenNetServer
 		_clients = new Dictionary<PeerId, TcpPeer>();
 		_serializer = new EdenPacketSerializer(new EdenDataSerializer());
 		_dispatcher = new EdenServerDispatcher(_serializer);
-		_logger = EdenLogManager.GetLogger<EdenTcpServer>();
+		_logger = EdenLogManager.GetLogger();
 	}
 	
 	public EdenTcpServer(int port) : this("0.0.0.0", port) {}

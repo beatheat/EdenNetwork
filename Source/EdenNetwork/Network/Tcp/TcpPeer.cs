@@ -3,7 +3,6 @@ using EdenNetwork.Dispatcher;
 using EdenNetwork.EdenException;
 using EdenNetwork.Log;
 using EdenNetwork.Packet;
-using Microsoft.Extensions.Logging;
 
 namespace EdenNetwork;
 
@@ -16,11 +15,11 @@ internal class TcpPeer
 	private readonly EdenTcpServer _parent;
 	private readonly PeerId _serverId;
 
-	private ILogger? _logger;
+	private readonly Logger? _logger;
 
 	public PeerId ServerId => _serverId;
 	
-	public TcpPeer(TcpClient tcpClient, PeerId serverId, EdenPacketSerializer serializer, EdenServerDispatcher dispatcher, EdenTcpServer parent, ILogger? logger)
+	public TcpPeer(TcpClient tcpClient, PeerId serverId, EdenPacketSerializer serializer, EdenServerDispatcher dispatcher, EdenTcpServer parent, Logger? logger)
 	{
 		_tcpClient = tcpClient;
 		_stream = tcpClient.GetStream();

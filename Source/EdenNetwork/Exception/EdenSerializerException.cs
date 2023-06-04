@@ -4,8 +4,8 @@ namespace EdenNetwork.EdenException;
 
 public class EdenSerializerException : Exception
 {
-	public object SerializeTargetData { get; set; }
-	public EdenPacket SerializeTargetPacket { get; set; }
+	public object SerializeTargetData { get; set; } = null!;
+	public EdenPacket SerializeTargetPacket { get; set; } = null!;
 	
 	public EdenSerializerException()
 	{
@@ -21,10 +21,7 @@ public class EdenSerializerException : Exception
 		SerializeTargetData = serializeTargetData;
 	}
 
-	
-
-	public EdenSerializerException(string message)
-		: base(message)
+	public EdenSerializerException(string message) : base(message)
 	{
 	}
 

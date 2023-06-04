@@ -15,7 +15,7 @@ internal class EdenDataSerializer : IEdenDataSerializer
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, data, $"Data Serialization Fail");
+			throw new EdenSerializerException(e, data!, $"Data Serialization Fail");
 		}
 	}
 

@@ -40,7 +40,7 @@ internal class EdenClientDispatcher
 			var methodInfos = endpointTypeInfo.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 			foreach (var methodInfo in methodInfos)
 			{
-				var endpoint = new Endpoint {Onwer = endpointObject, Logic = methodInfo};
+				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
 				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
 				{
 					endpoint.ArgumentType = ValidateReceiveMethod(methodInfo);
@@ -77,7 +77,7 @@ internal class EdenClientDispatcher
 				}
 				else if (methodInfo.GetCustomAttribute(typeof(EdenDisconnectAttribute)) != null)
 				{
-					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Onwer == endpointObject);
+					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (disconnectEndpoint != null) _disconnectEndpoints.Remove(disconnectEndpoint);
 					
 				}
@@ -95,11 +95,11 @@ internal class EdenClientDispatcher
 		{
 			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
-			endpoint.Logic.Invoke(endpoint.Onwer, new[] {packetData});
+			endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
 		}
 		else
 		{
-			endpoint.Logic.Invoke(endpoint.Onwer, null);
+			endpoint.Logic.Invoke(endpoint.Owner, null);
 		}
 	}
 
@@ -147,7 +147,7 @@ internal class EdenClientDispatcher
 	{
 		foreach (var endpoint in _disconnectEndpoints)
 		{
-			endpoint.Logic.Invoke(endpoint.Onwer, new object?[] {reason});
+			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {reason});
 		}
 	}
 	

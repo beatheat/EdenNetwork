@@ -6,7 +6,6 @@ using EdenNetwork.Log;
 using EdenNetwork.Packet;
 using LiteNetLib;
 using LiteNetLib.Utils;
-using Microsoft.Extensions.Logging;
 using static EdenNetwork.Constant;
 
 namespace EdenNetwork;
@@ -26,7 +25,7 @@ public class EdenUdpClient : IEdenNetClient
 
 	private readonly PeerId _serverId;
 	
-	private readonly ILogger? _logger;
+	private readonly Logger? _logger;
 	
 	public EdenUdpClient(string address, int port)
 	{
@@ -45,7 +44,7 @@ public class EdenUdpClient : IEdenNetClient
 		
 		_netManager.NatPunchModule.Init(_punchListener);
 
-		_logger = EdenLogManager.GetLogger<EdenUdpClient>();
+		_logger = EdenLogManager.GetLogger();
 		
 		_netManager.Start();
 	}

@@ -3,7 +3,6 @@ using EdenNetwork.Dispatcher;
 using EdenNetwork.EdenException;
 using EdenNetwork.Log;
 using EdenNetwork.Packet;
-using Microsoft.Extensions.Logging;
 
 namespace EdenNetwork;
 
@@ -14,7 +13,7 @@ public class EdenTcpClient : IEdenNetClient
 	private readonly EdenPacketSerializer _serializer;
 	private double _defaultTimeout;
 
-	private readonly ILogger? _logger;
+	private readonly Logger? _logger;
 
 	private readonly PeerId _serverId;
 
@@ -27,7 +26,7 @@ public class EdenTcpClient : IEdenNetClient
 
 		_serverId = new PeerId(address, port);
 		
-		_logger = EdenLogManager.GetLogger<EdenTcpClient>();
+		_logger = EdenLogManager.GetLogger();
 	}
 	
 	public void Close()

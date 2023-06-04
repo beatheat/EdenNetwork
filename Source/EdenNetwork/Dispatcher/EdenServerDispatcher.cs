@@ -38,7 +38,7 @@ internal class EdenServerDispatcher
 			var methodInfos = endpointTypeInfo.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 			foreach (var methodInfo in methodInfos)
 			{
-				var endpoint = new Endpoint {Onwer = endpointObject, Logic = methodInfo};
+				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
 				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
 				{
 					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
@@ -99,12 +99,12 @@ internal class EdenServerDispatcher
 				}
 				else if (methodInfo.GetCustomAttribute(typeof(EdenClientConnectAttribute)) != null)
 				{
-					var connectEndpoint = _connectEndpoints.Find(endpoint => endpoint.Onwer == endpointObject);
+					var connectEndpoint = _connectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (connectEndpoint != null) _connectEndpoints.Remove(connectEndpoint);
 				}
 				else if (methodInfo.GetCustomAttribute(typeof(EdenClientDisconnectAttribute)) != null)
 				{
-					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Onwer == endpointObject);
+					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (disconnectEndpoint != null) _connectEndpoints.Remove(disconnectEndpoint);
 					
 				}
@@ -122,11 +122,11 @@ internal class EdenServerDispatcher
 		{
 			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
-			endpoint.Logic.Invoke(endpoint.Onwer, new[] {peerId, packetData});
+			endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 		}
 		else
 		{
-			endpoint.Logic.Invoke(endpoint.Onwer, new object?[] {peerId});
+			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
 		}
 	}
 
@@ -141,11 +141,11 @@ internal class EdenServerDispatcher
 		{
 			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
-			responseData = endpoint.Logic.Invoke(endpoint.Onwer, new[] {peerId, packetData});
+			responseData = endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 		}
 		else
 		{
-			responseData = endpoint.Logic.Invoke(endpoint.Onwer, new object?[] {peerId});
+			responseData = endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
 		}
 		return responseData;
 	}
@@ -154,7 +154,7 @@ internal class EdenServerDispatcher
 	{
 		foreach (var endpoint in _connectEndpoints)
 		{
-			endpoint.Logic.Invoke(endpoint.Onwer, new object?[] {peerId});
+			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
 		}
 	}
 	
@@ -162,14 +162,14 @@ internal class EdenServerDispatcher
 	{
 		foreach (var endpoint in _disconnectEndpoints)
 		{
-			endpoint.Logic.Invoke(endpoint.Onwer, new object?[] {peerId, reason});
+			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId, reason});
 		}
 	}
 
 	public NatPeer? DispatchNatRelayMessage(NatPeer natPeer)
 	{
-		var opponentNatPeer = _natRelayEndpoint?.Logic.Invoke(_natRelayEndpoint.Onwer, new object?[] {natPeer});
-		return (NatPeer)opponentNatPeer;
+		var opponentNatPeer = _natRelayEndpoint?.Logic.Invoke(_natRelayEndpoint.Owner, new object?[] {natPeer});
+		return (NatPeer)opponentNatPeer!;
 	}
 	
 	private Type? ValidateReceiveResponseMethod(MethodInfo methodInfo)

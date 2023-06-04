@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>3.0.1</Version>
+    <Version>3.0.2</Version>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Authors>beatheat</Authors>
@@ -17,7 +17,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <FileVersion>1.0.0.0</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <PackageReleaseNotes>fix: fix error in add enpoint of NAT Relay Method parameter error</PackageReleaseNotes>
+    <PackageReleaseNotes>change: ZLogger to custom logger to support logging in unity</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -26,15 +26,13 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-    <WarningLevel>3</WarningLevel>
+    <WarningLevel>2</WarningLevel>
     <DefineConstants>RELEASE; TRACE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="1.0.1.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
     <PackageReference Include="protobuf-net" Version="3.2.16" />
-    <PackageReference Include="ZLogger" Version="1.7.0" />
   </ItemGroup>
 
 </Project>

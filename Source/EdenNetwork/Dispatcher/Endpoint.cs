@@ -4,7 +4,7 @@ namespace EdenNetwork.Dispatcher;
 
 internal class Endpoint
 {
-	public object Onwer { get; set; }
+	public object Owner { get; set; } = null!;
 	public MethodInfo Logic { get; set; }
 	public Type? ArgumentType { get; set; }
 }
