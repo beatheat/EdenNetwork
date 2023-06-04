@@ -74,7 +74,7 @@ if(client.Connect() == ConnectionState.OK)
     
     //blocked until response return or timeout
     int response = client.Request<int>("ServerResponse", data: 1);
-    Console.WriteLine("response: " + response); // response : 3
+    Console.WriteLine("response: " + response); // response : 1
     client.Send("ServerReceive", data: 5); 
 }
 
