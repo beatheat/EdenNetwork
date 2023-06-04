@@ -27,7 +27,7 @@ public class EdenUdpServer : IEdenNetServer
 
 	private readonly ILogger? _logger;
 	
-	public EdenUdpServer(string address, int port, ILogger? logger = null)
+	public EdenUdpServer(string address, int port)
 	{
 		_listener = new EventBasedNetListener();
 		_punchListener = new EventBasedNatPunchListener();
@@ -39,12 +39,12 @@ public class EdenUdpServer : IEdenNetServer
 
 		_address = address;
 		_port = port;
-		_logger = logger;
+		_logger = EdenLogManager.GetLogger<EdenUdpServer>();
 
 		_netManager.NatPunchModule.Init(_punchListener);
 	}
 
-	public EdenUdpServer(int port, ILogger? logger = null) : this("0.0.0.0", port, logger) {}
+	public EdenUdpServer(int port) : this("0.0.0.0", port) {}
 
 	public void SetSerializer(IEdenDataSerializer serializer)
 	{

@@ -28,7 +28,7 @@ public class EdenUdpClient : IEdenNetClient
 	
 	private readonly ILogger? _logger;
 	
-	public EdenUdpClient(string address, int port, ILogger? logger = null)
+	public EdenUdpClient(string address, int port)
 	{
 		_peer = null;
 		_listener = new EventBasedNetListener();
@@ -45,7 +45,7 @@ public class EdenUdpClient : IEdenNetClient
 		
 		_netManager.NatPunchModule.Init(_punchListener);
 
-		_logger = logger;
+		_logger = EdenLogManager.GetLogger<EdenUdpClient>();
 		
 		_netManager.Start();
 	}

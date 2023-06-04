@@ -18,7 +18,7 @@ public class EdenTcpClient : IEdenNetClient
 
 	private readonly PeerId _serverId;
 
-	public EdenTcpClient(string address, int port, ILogger? logger = null)
+	public EdenTcpClient(string address, int port)
 	{
 		_serializer = new EdenPacketSerializer(new EdenDataSerializer());
 		_dispatcher = new EdenClientDispatcher(_serializer);
@@ -27,7 +27,7 @@ public class EdenTcpClient : IEdenNetClient
 
 		_serverId = new PeerId(address, port);
 		
-		_logger = logger;
+		_logger = EdenLogManager.GetLogger<EdenTcpClient>();
 	}
 	
 	public void Close()
