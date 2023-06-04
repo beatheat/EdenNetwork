@@ -14,13 +14,13 @@ namespace EdenNetwork.Demo.Server
 
         public class Messenger
         {
-            private IEdenNetServer server;
+            private IEdenNetServer _server;
 
-            private PeerId? clientId = null;
+            private PeerId? _clientId = null;
             
             public void Start(IEdenNetServer server)
             {
-                this.server = server;
+                this._server = server;
                 server.AddEndpoints(this);
                 Console.WriteLine("Server is listening now...");
                 server.Listen(1);
@@ -31,14 +31,14 @@ namespace EdenNetwork.Demo.Server
             [EdenClientConnect]
             public void ClientConnect(PeerId clientId)
             {
-                this.clientId = clientId;
+                this._clientId = clientId;
                 Console.WriteLine("Client <" + clientId + "> is connected");
             }
             
             [EdenClientDisconnect]
-            public void ClientDisconnect(PeerId clientId)
+            public void ClientDisconnect(PeerId clientId, DisconnectReason reason)
             {
-                this.clientId = clientId;
+                this._clientId = clientId;
                 Console.WriteLine("Client <" + clientId + "> is disconnected");
             }
 
@@ -60,27 +60,28 @@ namespace EdenNetwork.Demo.Server
                 //main loop
                 while (!quit)
                 {
-                    string line = Console.ReadLine();
+                    string line = Console.ReadLine()!;
                     if (line.Equals("exit")) 
                         quit = true;
                     else
                     {
-                        if (clientId != null)
+                        if (_clientId != null)
                         {
-                            server.Send("ServerMessage", clientId.Value, line);
+                            _server.Send("ServerMessage", _clientId.Value, line);
                             Console.WriteLine("Server: " + line);
                         }
                     }
                 
                 }
-                server.Close();;
+                _server.Close();;
             }
         }
         
         static void Main(string[] args)
         {
+            Log.EdenLogManager.SettingLogger("DemoServerNet", ".log");
             var messenger = new Messenger();
-            messenger.Start(new EdenUdpServer(7777));
+            messenger.Start(new EdenTcpServer(7777));
         }
     }
 }
