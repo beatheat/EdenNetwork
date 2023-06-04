@@ -9,15 +9,12 @@ Unity >= 2021.3.19f1
 
 litenetlib 1.0.1.1 (https://github.com/RevenantX/LiteNetLib)   
 protobuf-net 3.2.16 (https://github.com/protobuf-net/protobuf-net)   
-ZLogger 1.7.0 (https://github.com/Cysharp/ZLogger)   
-Microsoft.Extensions.Logging.Abstractions 7.0.0 (https://www.nuget.org/packages/Microsoft.Extensions.Logging.Abstractions)
 
 ### Nuget
 [nuget package](https://www.nuget.org/packages/EdenNetwork)   
 
 ### UPM
 You can add `https://github.com/beatheat/EdenNetwork.git?path=UPMPackage/EdenNetwork` to Package Manager   
-This package has dependency on https://github.com/Cysharp/UniTask
 
 ### Documentation (Korean)
 [documentation](https://github.com/beatheat/EdenNetwork/blob/main/Docs/EdenNetwork_Documentation.pdf)
