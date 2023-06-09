@@ -1,15 +1,14 @@
-﻿namespace EdenNetwork.Log
+﻿namespace EdenNetwork.Log;
+
+public enum NetworkEventType
 {
-	public enum NetworkEventType
-	{
-		Connect,
-		Disconnect,
-		Send,
-		RequestTo,
-		RequestFrom,
-		Receive,
-		ResponseTo,
-		ResponseFrom,
-		NotFormattedPacket
-	}
+	Connect,
+	Disconnect,
+	Send,
+	RequestTo,
+	RequestFrom,
+	Receive,
+	ResponseTo,
+	ResponseFrom,
+	NotFormattedPacket
 }

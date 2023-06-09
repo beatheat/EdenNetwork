@@ -1,86 +1,60 @@
-﻿using System;
-using System.Collections.Generic;
-using Newtonsoft.Json;
-using UnityEngine;
+﻿using System.Text.Json;
 
-namespace EdenNetwork.Log
+namespace EdenNetwork.Log;
+
+public class Logger
 {
-
-	public class Logger
+	private readonly Queue<Log> _logQueue;
+	
+	public Logger(Queue<Log> logQueue)
 	{
-		private readonly bool _printConsole;
-		private readonly Queue<string> _logQueue;
-		private readonly string _loggerName;
+		_logQueue = logQueue;
+	}
 
-		public Logger(string loggerName, Queue<string> logQueue, bool printConsole = true)
+
+	public void Log(NetworkEventType eventType, object payload, string message)
+	{
+		var log = new Log
 		{
-			_loggerName = loggerName;
-			_printConsole = printConsole;
-			_logQueue = logQueue;
-		}
+			LogLevel = LogLevel.Information,
+			EventType = eventType,
+			Message = message,
+			Payload = payload,
+			Timestamp = DateTime.Now
+		};
 
-
-		public void Log(NetworkEventType eventType, object payload, string message)
-		{
-			var log = new
-			{
-				LogLevel = "Information",
-				EventType = eventType.ToString(),
-				Message = message,
-				Payload = payload,
-				Timestamp = DateTime.Now
-			};
-
-			var serializedLog = JsonConvert.SerializeObject(log);
-
-			_logQueue.Enqueue(serializedLog);
-			if (_printConsole)
-			{
-				Debug.Log($"[{_loggerName} | {DateTime.Now:yy-MM-dd hh:mm:ss}] {message}, {payload}");
-			}
-		}
-
-		public void LogError(NetworkEventType eventType, object payload, string message)
-		{
-
-			var log = new
-			{
-				LogLevel = "Error",
-				EventType = eventType.ToString(),
-				Message = message,
-				Payload = payload,
-				Timestamp = DateTime.Now,
-			};
-
-			var serializedLog = JsonConvert.SerializeObject(log);
-
-			_logQueue.Enqueue(serializedLog);
-			if (_printConsole)
-			{
-				Debug.LogError($"[{_loggerName} | {DateTime.Now:yy-MM-dd hh:mm:ss}] {message}, {payload}");
-			}
-		}
-
-		public void LogError(NetworkEventType eventType, object payload, string message, Exception e)
-		{
-			var log = new
-			{
-				LogLevel = "Error",
-				EventType = eventType.ToString(),
-				Message = message,
-				Payload = payload,
-				Timestamp = DateTime.Now,
-				Exception = e.Message
-			};
-
-			var serializedLog = JsonConvert.SerializeObject(log);
-
-			_logQueue.Enqueue(serializedLog);
-			if (_printConsole)
-			{
-				Debug.LogError($"[{_loggerName} | {DateTime.Now:yy-MM-dd hh:mm:ss}] {message}, {payload}");
-			}
-		}
+		_logQueue.Enqueue(log);
 
 	}
+
+	public void LogError(NetworkEventType eventType, object payload, string message)
+	{
+
+		var log = new Log
+		{
+			LogLevel = LogLevel.Error,
+			EventType = eventType,
+			Message = message,
+			Payload = payload,
+			Timestamp = DateTime.Now,
+		};
+		
+		_logQueue.Enqueue(log);
+	}
+	
+	public void LogError(NetworkEventType eventType, object payload, string message, Exception e)
+	{
+		var log = new Log
+		{
+			LogLevel = LogLevel.Error,
+			EventType = eventType,
+			Message = message,
+			Payload = payload,
+			Timestamp = DateTime.Now,
+			Exception = e.Message
+		};
+		
+		_logQueue.Enqueue(log);
+	}
+
 }
