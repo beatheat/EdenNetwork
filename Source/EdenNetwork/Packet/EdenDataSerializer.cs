@@ -28,7 +28,7 @@ internal class EdenDataSerializer : IEdenDataSerializer
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, "Data Deserialization Fail");
+			throw new EdenSerializerException(e, "Data Deserialization Fail\n" + e.Message);
 		}
 
 	}

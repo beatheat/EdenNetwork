@@ -94,7 +94,15 @@ internal class EdenClientDispatcher
 		if (endpoint.ArgumentType != null)
 		{
 			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-			var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+			object? packetData;
+			try
+			{
+				packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data});
+			}
+			catch (TargetInvocationException e)
+			{
+				throw e.InnerException!;
+			}
 			endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
 		}
 		else
