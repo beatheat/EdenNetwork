@@ -1,4 +1,5 @@
-﻿using EdenNetwork.EdenException;
+﻿using System.Text;
+using EdenNetwork.EdenException;
 using ProtoBuf;
 
 namespace EdenNetwork.Packet;
@@ -15,7 +16,7 @@ internal class EdenDataSerializer : IEdenDataSerializer
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, data!, $"Data Serialization Fail");
+			throw new EdenSerializerException(e, data!, $"Data Serialization Fail\n" + e.Message);
 		}
 	}
 
@@ -28,7 +29,7 @@ internal class EdenDataSerializer : IEdenDataSerializer
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, "Data Deserialization Fail\n" + e.Message);
+			throw new EdenSerializerException(e, $"Data Deserialization Fail({Encoding.Default.GetString(packetSerialized)})\n" + e.Message);
 		}
 
 	}

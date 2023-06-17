@@ -16,32 +16,42 @@ public static class LoggerExtension
 	
 	public static void LogSend(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.Send, new {RemoteAddress = peerId, Packet = packet}, $"Data Send To {peerId}");
+		logger.Log(NetworkEventType.Send, new {RemoteAddress = peerId, Packet = packet}, $"Send To {peerId}");
+	}
+	
+	public static void LogBroadcast(this Logger logger, EdenPacket packet)
+	{
+		logger.Log(NetworkEventType.Send, new {Packet = packet}, $"Broadcast");
+	}
+	
+	public static void LogBroadcastExcept(this Logger logger, PeerId peerId, EdenPacket packet)
+	{
+		logger.Log(NetworkEventType.Send, new {Packet = packet}, $"Broadcast except {peerId}");
 	}
 	
 	public static void LogRequestTo(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.RequestTo, new {RemoteAddress = peerId, Packet = packet}, $"Data Request To {peerId}");
+		logger.Log(NetworkEventType.RequestTo, new {RemoteAddress = peerId, Packet = packet}, $"Request To {peerId}");
 	}
 	
 	public static void LogRequestFrom(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.RequestFrom, new {RemoteAddress = peerId, Packet = packet}, $"Data Request From {peerId}");
+		logger.Log(NetworkEventType.RequestFrom, new {RemoteAddress = peerId, Packet = packet}, $"Request From {peerId}");
 	}
 
 	public static void LogReceive(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.Receive, new {RemoteAddress = peerId, Packet = packet}, $"Data Receive From {peerId}");
+		logger.Log(NetworkEventType.Receive, new {RemoteAddress = peerId, Packet = packet}, $"Receive From {peerId}");
 	}
 	
 	public static void LogResponseTo(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.ResponseTo, new {RemoteAddress = peerId, Packet = packet}, $"Data Response To {peerId}");
+		logger.Log(NetworkEventType.ResponseTo, new {RemoteAddress = peerId, Packet = packet}, $"Response To {peerId}");
 	}
 	
 	public static void LogResponseFrom(this Logger logger, PeerId peerId, EdenPacket packet)
 	{
-		logger.Log(NetworkEventType.ResponseFrom, new {RemoteAddress = peerId, Packet = packet}, $"Data Response From {peerId}");
+		logger.Log(NetworkEventType.ResponseFrom, new {RemoteAddress = peerId, Packet = packet}, $"Response From {peerId}");
 	}
 
 	public static void LogUnformattedPacketError(this Logger logger, PeerId peerId)

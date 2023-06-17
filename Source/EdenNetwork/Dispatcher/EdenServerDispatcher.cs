@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text;
 using EdenNetwork.EdenException;
 using EdenNetwork.Packet;
 
@@ -39,39 +40,59 @@ internal class EdenServerDispatcher
 			foreach (var methodInfo in methodInfos)
 			{
 				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
-				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
+				var attributes = methodInfo.GetCustomAttributes();
+				foreach (var attribute in attributes)
 				{
-					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
-					if (_receiveEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
+					var attributeType = attribute.GetType();
+					if (attributeType == typeof(EdenReceiveAttribute))
 					{
-						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+						
+						endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
+						
+						var receiveAttribute = (EdenReceiveAttribute)attribute;
+						receiveAttribute.apiName ??= methodInfo.Name;
+						
+						if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
+						{
+							throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+						}
+						break;
+					}
+					else if (attributeType == typeof(EdenResponseAttribute))
+					{
+						endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
+						
+						var responseAttribute = (EdenResponseAttribute)attribute;
+						responseAttribute.apiName ??= methodInfo.Name;
+						
+						if (_responseEndpoints.TryAdd(responseAttribute.apiName, endpoint) == false)
+						{
+							throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+						}
+						break;
+					}
+					else if (attributeType == typeof(EdenClientConnectAttribute))
+					{
+						ValidateClientConnectMethod(methodInfo);
+						_connectEndpoints.Add(endpoint);
+						break;
+					}
+					else if (attributeType == typeof(EdenClientDisconnectAttribute))
+					{
+						ValidateClientDisconnectMethod(methodInfo);
+						_disconnectEndpoints.Add(endpoint);
+						break;
+					}
+					else if (attributeType == typeof(EdenNatRelayAttribute))
+					{
+						if (_natRelayEndpoint != null)
+							throw new EdenDispatcherException($"NAT Relay Method Could Exist Only One - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+						ValidateNatRelayMethod(methodInfo);
+						_natRelayEndpoint = endpoint;
+						break;
 					}
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenResponseAttribute)) != null)
-				{
-					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
-					if (_responseEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
-					{
-						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
-					}
-				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenClientConnectAttribute)) != null)
-				{
-					ValidateClientConnectMethod(methodInfo);
-					_connectEndpoints.Add(endpoint);
-				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenClientDisconnectAttribute)) != null)
-				{
-					ValidateClientDisconnectMethod(methodInfo);
-					_disconnectEndpoints.Add(endpoint);
-				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenNatRelayAttribute)) != null)
-				{
-					if (_natRelayEndpoint != null)
-						throw new EdenDispatcherException($"NAT Relay Method Could Exist Only One - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
-					ValidateNatRelayMethod(methodInfo);
-					_natRelayEndpoint = endpoint;
-				}
+				
 			}
 		}
 	}
@@ -117,24 +138,22 @@ internal class EdenServerDispatcher
 		// Ignore Unknown Packet
 		if (!_receiveEndpoints.TryGetValue(packet.Tag, out var endpoint))
 			return;
-
-		if (endpoint.ArgumentType != null)
+		try
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-			object? packetData;
-			try
+			if (endpoint.ArgumentType != null)
 			{
-				packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
+				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 			}
-			catch (TargetInvocationException e)
+			else
 			{
-				throw e.InnerException!;
+				endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
 			}
-			endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 		}
-		else
+		catch (Exception e)
 		{
-			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
+			throw new EdenDispatcherException("DispatchSend Error at " + endpoint.Logic.Name + "\n");
 		}
 	}
 
@@ -145,24 +164,24 @@ internal class EdenServerDispatcher
 			return null;
 
 		object? responseData;
-		if (endpoint.ArgumentType != null)
+		try
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-			object? packetData;
-			try
+			if (endpoint.ArgumentType != null)
 			{
-				packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
+				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				responseData = endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 			}
-			catch (TargetInvocationException e)
+			else
 			{
-				throw e.InnerException!;
+				responseData = endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
 			}
-			responseData = endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 		}
-		else
+		catch (Exception e)
 		{
-			responseData = endpoint.Logic.Invoke(endpoint.Owner, new object?[] {peerId});
+			throw new EdenDispatcherException("DispatchRequest Error at " + endpoint.Logic.Name + "\n" + e.InnerException?.Message + "\n" + Encoding.Default.GetString((byte[])packet.Data));
 		}
+
 		return responseData;
 	}
 
@@ -182,9 +201,9 @@ internal class EdenServerDispatcher
 		}
 	}
 
-	public NatPeer? DispatchNatRelayMessage(NatPeer natPeer)
+	public NatPeer? DispatchNatRelayMessage(NatPeer natPeer, string additionalData)
 	{
-		var opponentNatPeer = _natRelayEndpoint?.Logic.Invoke(_natRelayEndpoint.Owner, new object?[] {natPeer});
+		var opponentNatPeer = _natRelayEndpoint?.Logic.Invoke(_natRelayEndpoint.Owner, new object?[] {natPeer, additionalData});
 		return (NatPeer)opponentNatPeer!;
 	}
 	

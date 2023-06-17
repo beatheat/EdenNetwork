@@ -4,13 +4,32 @@
 [AttributeUsage(AttributeTargets.Method)]
 public class EdenReceiveAttribute : Attribute
 {
+	public string? apiName;
+
+	public EdenReceiveAttribute()
+	{
+		this.apiName = null;
+	}
 	
+	public EdenReceiveAttribute(string apiName)
+	{
+		this.apiName = apiName;
+	}
 }
 
 [AttributeUsage(AttributeTargets.Method)]
 public class EdenResponseAttribute : Attribute
 {
-	
+	public string? apiName;
+	public EdenResponseAttribute()
+	{
+		this.apiName = null;
+	}
+
+	public EdenResponseAttribute(string apiName)
+	{
+		this.apiName = apiName;
+	}
 }
 
 [AttributeUsage(AttributeTargets.Method)]

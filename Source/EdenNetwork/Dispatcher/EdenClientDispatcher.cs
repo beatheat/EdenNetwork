@@ -91,23 +91,22 @@ internal class EdenClientDispatcher
 		// Ignore Unknown API
 		if (!_receiveEndpoints.TryGetValue(packet.Tag, out var endpoint))
 			return;
-		if (endpoint.ArgumentType != null)
+		try
 		{
-			var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-			object? packetData;
-			try
+			if (endpoint.ArgumentType != null)
 			{
-				packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data});
+				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
+				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data});
+				endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
 			}
-			catch (TargetInvocationException e)
+			else
 			{
-				throw e.InnerException!;
+				endpoint.Logic.Invoke(endpoint.Owner, null);
 			}
-			endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
 		}
-		else
+		catch (Exception e)
 		{
-			endpoint.Logic.Invoke(endpoint.Owner, null);
+			throw new EdenDispatcherException("Dispatch Error at " + endpoint.Logic.Name + "\n" + e.InnerException?.Message);
 		}
 	}
 
@@ -123,7 +122,7 @@ internal class EdenClientDispatcher
 	}
 
 	
-	public T? WaitResponse<T>(string tag, double timeout)
+	public T? WaitResponse<T>(string tag, TimeSpan timeout)
 	{
 		if (_responseData.ContainsKey(tag))
 			throw new EdenDispatcherException($"Duplicated Request Simultaneously - API : {tag}");
@@ -131,17 +130,14 @@ internal class EdenClientDispatcher
 		ResponseData responseData = new ResponseData {Received = false, RawData = null};
 		_responseData.Add(tag, responseData);
 		var time = DateTime.Now;
+
+		SpinWait.SpinUntil(() => responseData.Received, timeout);
 		
-		while (DateTime.Now - time < TimeSpan.FromSeconds(timeout))
-		{
-			if (responseData.Received)
-				break;
-			Thread.Sleep(10);
-		}
+		_responseData.Remove(tag);
 
 		if (responseData.Received == false)
 		{
-			throw new EdenDispatcherException($"Request Timeout - API : {tag}");
+			throw new EdenTimeoutException($"Request Timeout - API : {tag}");
 		}
 
 		if (responseData.RawData == null)

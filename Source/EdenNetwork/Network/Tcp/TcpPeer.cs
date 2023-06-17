@@ -13,17 +13,17 @@ internal class TcpPeer
 	private readonly EdenServerDispatcher _dispatcher;
 	private readonly EdenPacketSerializer _serializer;
 	private readonly EdenTcpServer _parent;
-	private readonly PeerId _serverId;
+	private readonly PeerId _clientId;
 
 	private readonly Logger? _logger;
 
-	public PeerId ServerId => _serverId;
+	public PeerId ClientId => _clientId;
 	
-	public TcpPeer(TcpClient tcpClient, PeerId serverId, EdenPacketSerializer serializer, EdenServerDispatcher dispatcher, EdenTcpServer parent, Logger? logger)
+	public TcpPeer(TcpClient tcpClient, PeerId clientId, EdenPacketSerializer serializer, EdenServerDispatcher dispatcher, EdenTcpServer parent, Logger? logger)
 	{
 		_tcpClient = tcpClient;
 		_stream = tcpClient.GetStream();
-		_serverId = serverId;
+		_clientId = clientId;
 		_dispatcher = dispatcher;
 		_serializer = serializer;
 		_parent = parent;
@@ -44,7 +44,7 @@ internal class TcpPeer
 				//Ignore Not Formatted Packet
 				if (packetLength < 0)
 				{
-					_logger?.LogUnformattedPacketError(_serverId);
+					_logger?.LogUnformattedPacketError(_clientId);
 					continue;
 				}
 				var packetBytes = new byte[packetLength];
@@ -53,7 +53,7 @@ internal class TcpPeer
 				_stream.Read(packetBytes);
 				Task.Run(() => NetworkReceive(packetBytes, packetLength));
 			}
-			_parent.DisconnectClient(_serverId);
+			_parent.DisconnectClient(_clientId);
 		});
 
 		void NetworkReceive(byte[] serializedPacket, int packetLength)
@@ -65,7 +65,7 @@ internal class TcpPeer
 			}
 			catch (Exception e)
 			{
-				_logger?.LogUnformattedPacketError(_serverId,e);
+				_logger?.LogUnformattedPacketError(_clientId,e);
 				return;
 			}
 			
@@ -73,25 +73,25 @@ internal class TcpPeer
 			{
 				if (packet.Type == EdenPacketType.Request)
 				{
-					var responseData = _dispatcher.DispatchRequestPacket(_serverId, packet);
-					_logger?.LogRequestFrom(_serverId, packet);
+					var responseData = _dispatcher.DispatchRequestPacket(_clientId, packet);
+					_logger?.LogRequestFrom(_clientId, packet);
 					Response(packet.Tag, responseData);
 				}
 				else if(packet.Type == EdenPacketType.Send)
 				{
-					_dispatcher.DispatchSendPacket(_serverId, packet);
-					_logger?.LogRequestFrom(_serverId, packet);
+					_dispatcher.DispatchSendPacket(_clientId, packet);
+					_logger?.LogRequestFrom(_clientId, packet);
 				}
 				else
 				{
 					//Ignore Not Formatted Packet
-					_logger?.LogUnformattedPacketError(_serverId);
+					_logger?.LogUnformattedPacketError(_clientId);
 					return;
 				}
 			}
 			catch (Exception e)
 			{
-				_logger?.LogUnformattedPacketError(_serverId, e);
+				_logger?.LogUnformattedPacketError(_clientId, e);
 				return;
 			}
 			
@@ -99,7 +99,7 @@ internal class TcpPeer
 		}
 	}
 
-	public void Send(string tag, object? data)
+	public EdenPacket Send(string tag, object? data)
 	{
 		if (!(_tcpClient.Connected && _stream.CanWrite))
 			throw new EdenNetworkException("Peer is Not Connected");
@@ -108,8 +108,7 @@ internal class TcpPeer
 
 		var serializedPacket = _serializer.Serialize(packet);
 		_stream.Write(serializedPacket);
-
-		_logger?.LogSend(_serverId, packet);
+		return packet;
 	}
 	
 
@@ -123,7 +122,7 @@ internal class TcpPeer
 		var serializedPacket = _serializer.Serialize(packet);
 		_stream.Write(serializedPacket);
 		
-		_logger?.LogResponseTo(_serverId, packet);
+		_logger?.LogResponseTo(_clientId, packet);
 	}
 	
 	public void Close()

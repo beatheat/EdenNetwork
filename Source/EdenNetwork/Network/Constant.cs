@@ -2,6 +2,6 @@
 
 public static class Constant
 {
-	public const double DEFAULT_TIMEOUT = 10.0;
+	public static readonly TimeSpan DEFAULT_TIMEOUT = TimeSpan.FromSeconds(10);
 }
 

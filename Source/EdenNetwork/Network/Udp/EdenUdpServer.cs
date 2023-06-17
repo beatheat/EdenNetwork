@@ -193,6 +193,7 @@ public class EdenUdpServer : IEdenNetServer
 		NetDataWriter writer = new NetDataWriter();
 		writer.PutBytesWithLength(packetBytes);
 		_netManager.SendToAll(writer, _deliveryMethod);
+		_logger?.LogBroadcast(packet);
 	}
 
 	public void BroadcastExcept(string tag, PeerId clientId, object? data = null)
@@ -207,6 +208,7 @@ public class EdenUdpServer : IEdenNetServer
 		NetDataWriter writer = new NetDataWriter();
 		writer.PutBytesWithLength(packetBytes);
 		_netManager.SendToAll(writer, _deliveryMethod, exceptPeer);	
+		_logger?.LogBroadcastExcept(clientId, packet);
 	}
 
 	public async Task SendAsync(string tag, PeerId clientId, object? data = null) 
@@ -216,55 +218,34 @@ public class EdenUdpServer : IEdenNetServer
 
 	public async Task BroadcastAsync(string tag, object? data = null)
 	{
-		await Task.Run(() => BroadcastAsync(tag, data));
+		await Task.Run(() => Broadcast(tag, data));
 	}
 
 	public async Task BroadcastExceptAsync(string tag, PeerId clientId, object? data = null)
 	{
-		await Task.Run(() => BroadcastExceptAsync(tag, clientId, data));
+		await Task.Run(() => BroadcastExcept(tag, clientId, data));
 	}
 
-	public void RegisterNatHolePunching(string address, int port, string additionalData = "", double timeout = -1)
+	public void RegisterNatHolePunching(string address, int port, string additionalData = "")
 	{
 		_netManager.NatPunchEnabled = true;
 		_netManager.NatPunchModule.UnsyncedEvents = true;
-		
+
 		_punchListener.NatIntroductionSuccess += (IPEndPoint targetEndPoint, NatAddressType type, string key) =>
 		{
+			_netManager.MaxConnectAttempts = (int) (DEFAULT_TIMEOUT.TotalSeconds) / _netManager.ReconnectDelay;
 			var peer = _netManager.Connect(targetEndPoint, "");
 		};
 		_netManager.NatPunchModule.SendNatIntroduceRequest(address, port, additionalData);
 	}
-	
-	public bool RequestNatHolePunching(string address, int port, string additionalData = "", double timeout = -1)
-	{
-		_netManager.NatPunchEnabled = true;
-		_netManager.NatPunchModule.UnsyncedEvents = true;
-		
-		bool success = false;
-		_punchListener.NatIntroductionSuccess += (IPEndPoint targetEndPoint, NatAddressType type, string key) =>
-		{
-			var peer = _netManager.Connect(targetEndPoint, "");
-			success = peer != null;
-		};
-		_netManager.NatPunchModule.SendNatIntroduceRequest(address, port, additionalData);
-		if (timeout < 0) timeout = DEFAULT_TIMEOUT;
-		EdenUtil.WaitUntilFlagOn(ref success, timeout);
-		return success;
-	}
-	
-	public async Task<bool> RequestNatHolePunchingAsync(string address, int port, string additionalData = "", double timeout = -1)
-	{
-		return await Task.Run(() => RequestNatHolePunching(address,port,additionalData,timeout));
-	}
-	
+
 	public void SetNatRequestListener()
 	{
 		_netManager.NatPunchEnabled = true;
 		_netManager.NatPunchModule.UnsyncedEvents = true;
 		_punchListener.NatIntroductionRequest += (localEndPoint, remoteEndPoint, additionalData) =>
 		{
-			var hostEndPoint = _dispatcher.DispatchNatRelayMessage(new NatPeer {LocalEndPoint = new PeerId(localEndPoint), RemoteEndPoint = new PeerId(remoteEndPoint)});
+			var hostEndPoint = _dispatcher.DispatchNatRelayMessage(new NatPeer {LocalEndPoint = new PeerId(localEndPoint), RemoteEndPoint = new PeerId(remoteEndPoint)}, additionalData);
 			if (hostEndPoint != null)
 			{
 				_netManager.NatPunchModule.NatIntroduce(

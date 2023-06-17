@@ -6,17 +6,17 @@ public class EdenSerializerException : Exception
 {
 	public object SerializeTargetData { get; set; } = null!;
 	public EdenPacket SerializeTargetPacket { get; set; } = null!;
-	
+
 	public EdenSerializerException()
 	{
 	}
-	
-	public EdenSerializerException(System.Exception inner, EdenPacket serializeTargetPacket, string message) : base(message,inner)
+
+	public EdenSerializerException(System.Exception inner, EdenPacket serializeTargetPacket, string message) : base(message, inner)
 	{
 		SerializeTargetPacket = serializeTargetPacket;
 	}
 
-	public EdenSerializerException(System.Exception inner, object serializeTargetData, string message) : base(message,inner)
+	public EdenSerializerException(System.Exception inner, object serializeTargetData, string message) : base(message, inner)
 	{
 		SerializeTargetData = serializeTargetData;
 	}
@@ -24,7 +24,7 @@ public class EdenSerializerException : Exception
 	public EdenSerializerException(string message) : base(message)
 	{
 	}
-
+	
 	public EdenSerializerException(System.Exception inner, string message) : base(message, inner)
 	{
 	}

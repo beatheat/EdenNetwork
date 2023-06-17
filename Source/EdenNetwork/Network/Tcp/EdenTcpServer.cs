@@ -101,22 +101,29 @@ public class EdenTcpServer : IEdenNetServer
 	{
 		if (_clients.TryGetValue(clientId, out var client) == false)
 			throw new EdenNetworkException("Peer is Not Connected");
-		client.Send(tag, data);
+		var packet = client.Send(tag, data);
+		_logger?.LogSend(clientId, packet);
 	}
 
 	public void Broadcast(string tag, object? data = null)
 	{
+		EdenPacket? packet = null;
 		foreach(var client in _clients.Values)
-			client.Send(tag, data);	
+			packet = client.Send(tag, data);	
+		if(packet != null)
+			_logger?.LogBroadcast(packet);
 	}
 
 	public void BroadcastExcept(string tag, PeerId clientId, object? data = null)
 	{
+		EdenPacket? packet = null;
 		foreach (var client in _clients.Values)
 		{
-			if(client.ServerId != clientId)
-				client.Send(tag, data);
+			if(client.ClientId != clientId)
+				packet = client.Send(tag, data);
 		}
+		if(packet != null)
+			_logger?.LogBroadcastExcept(clientId, packet);
 	}
 
 	public async Task SendAsync(string tag, PeerId clientId, object? data = null)

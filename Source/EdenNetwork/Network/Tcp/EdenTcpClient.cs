@@ -3,6 +3,7 @@ using EdenNetwork.Dispatcher;
 using EdenNetwork.EdenException;
 using EdenNetwork.Log;
 using EdenNetwork.Packet;
+using static EdenNetwork.Constant;
 
 namespace EdenNetwork;
 
@@ -11,7 +12,7 @@ public class EdenTcpClient : IEdenNetClient
 	private readonly TcpClient _peer;
 	private readonly EdenClientDispatcher _dispatcher;
 	private readonly EdenPacketSerializer _serializer;
-	private double _defaultTimeout;
+	private TimeSpan _defaultTimeout;
 
 	private readonly Logger? _logger;
 
@@ -22,7 +23,7 @@ public class EdenTcpClient : IEdenNetClient
 		_serializer = new EdenPacketSerializer(new EdenDataSerializer());
 		_dispatcher = new EdenClientDispatcher(_serializer);
 		_peer = new TcpClient(AddressFamily.InterNetwork);
-		_defaultTimeout = Constant.DEFAULT_TIMEOUT;
+		_defaultTimeout = DEFAULT_TIMEOUT;
 
 		_serverId = new PeerId(address, port);
 		
@@ -35,7 +36,7 @@ public class EdenTcpClient : IEdenNetClient
 		_peer.Close();
 	}
 
-	public void SetDefaultTimeout(double timeout)
+	public void SetDefaultTimeout(TimeSpan timeout)
 	{
 		_defaultTimeout = timeout;
 	}
@@ -55,13 +56,12 @@ public class EdenTcpClient : IEdenNetClient
 		_dispatcher.AddEndpoints(endpoints);
 	}
 
-	public ConnectionState Connect(double timeout = -1)
+	public ConnectionState Connect(TimeSpan? timeout = null)
 	{
-		if (timeout < 0)
-			timeout = _defaultTimeout;
+		timeout ??= _defaultTimeout;
 		try
 		{
-			if (!_peer.ConnectAsync(_serverId.Ip,_serverId.Port).Wait((int) (timeout * 1000)))
+			if (!_peer.ConnectAsync(_serverId.Ip,_serverId.Port).Wait(timeout.Value))
 			{
 				return ConnectionState.Timeout;
 			}
@@ -86,7 +86,7 @@ public class EdenTcpClient : IEdenNetClient
 		return serverState;
 	}
 
-	public async Task<ConnectionState> ConnectAsync(double timeout)
+	public async Task<ConnectionState> ConnectAsync(TimeSpan? timeout = null)
 	{
 		return await Task.Run(() => Connect(timeout));
 	}
@@ -103,7 +103,7 @@ public class EdenTcpClient : IEdenNetClient
 		_logger?.LogSend(_serverId, packet);
 	}
 
-	public T? Request<T>(string tag, object? data = null, double timeout = -1)
+	public T? Request<T>(string tag, object? data = null, TimeSpan? timeout = null)
 	{
 		if (!(_peer.Connected && _peer.GetStream().CanWrite))
 			throw new EdenNetworkException("Peer is Not Connected");
@@ -115,8 +115,8 @@ public class EdenTcpClient : IEdenNetClient
         
         _logger?.LogRequestTo(_serverId, packet);
 
-        if (timeout < 0) timeout = _defaultTimeout;
-		var responseData = _dispatcher.WaitResponse<T>(tag, timeout);
+        timeout ??= _defaultTimeout;
+		var responseData = _dispatcher.WaitResponse<T>(tag, timeout.Value);
 		return responseData;
 	}
 
@@ -125,7 +125,7 @@ public class EdenTcpClient : IEdenNetClient
 		await Task.Run(() => Send(tag, data));
 	}
 
-	public async Task<T?> RequestAsync<T>(string tag, object? data = null, double timeout = -1)
+	public async Task<T?> RequestAsync<T>(string tag, object? data = null, TimeSpan? timeout = null)
 	{
 		return await Task.Run(() => Request<T>(tag, data, timeout));
 	}

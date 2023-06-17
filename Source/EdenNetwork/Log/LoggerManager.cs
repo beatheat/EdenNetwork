@@ -95,7 +95,7 @@ public class LoggerManager
 					else
 						Console.ForegroundColor = ConsoleColor.Red;
 					
-					var consoleLogString = $"[{_loggerName}|{log.Timestamp:yy-MM-dd hh:mm:ss}] {log.Message}";
+					var consoleLogString = $"[{_loggerName}|{log.Timestamp:yy-MM-dd hh:mm:ss.ffff}] {log.Message}";
 
 					if (log.Payload != null) consoleLogString += $", {JsonSerializer.Serialize(log.Payload)}";
 					if (log.Exception != null) consoleLogString += $", {log.Exception}";

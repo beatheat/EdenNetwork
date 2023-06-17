@@ -23,15 +23,4 @@ public static class EdenUtil
 		return isAvailable;
 	}
 
-	
-	public static void WaitUntilFlagOn(ref bool flag, double timeout)
-	{
-		var time = DateTime.Now;
-		while (!flag)
-		{
-			Thread.Sleep(10);
-			if(DateTime.Now - time > TimeSpan.FromSeconds(timeout))
-				break;
-		}
-	}
 }

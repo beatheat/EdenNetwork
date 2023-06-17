@@ -64,7 +64,7 @@ internal class EdenPacketSerializer
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, packet, "Packet Serialize Fail");
+			throw new EdenSerializerException(e, packet, "Packet Serialize Fail\n" + e.Message + "\n" + e.InnerException?.Message);
 		}
 	}
 	
@@ -84,7 +84,7 @@ internal class EdenPacketSerializer
 			memoryStream.Read(tagBuffer);
 			packet.Tag = Encoding.UTF8.GetString(tagBuffer);
 
-			if (dataLength != 0)
+			if (dataLength > 0)
 			{
 				var dataBuffer = new byte[dataLength];
 				memoryStream.Read(dataBuffer);
@@ -92,36 +92,28 @@ internal class EdenPacketSerializer
 			}
 			else
 			{
-				packet.Data = null;
+				packet.Data = Array.Empty<byte>();
 			}
 
 			return packet;
 		}
 		catch (Exception e)
 		{
-			throw new EdenSerializerException(e, "Packet Deserialize Fail");
+			throw new EdenSerializerException(e, "Packet Deserialize Fail\n" + e.Message);
 		}
 	}
 	
 	public EdenPacket Deserialize(byte[] serializedPacket)
 	{
-		try
-		{
-			var memoryStream = new MemoryStream(serializedPacket);
+		var memoryStream = new MemoryStream(serializedPacket);
 		
-			var packetLengthBuffer = new byte[PACKET_BYTE_LENGTH];
-			memoryStream.Read(packetLengthBuffer);
-			var packetLength = BitConverter.ToInt16(packetLengthBuffer);
-			
-			memoryStream.Read(serializedPacket, 0, packetLength - PACKET_BYTE_LENGTH);
+		var packetLengthBuffer = new byte[PACKET_BYTE_LENGTH];
+		memoryStream.Read(packetLengthBuffer);
+		var packetLength = BitConverter.ToInt16(packetLengthBuffer);
 
-			return Deserialize(serializedPacket, packetLength);
-			
-		}
-		catch (Exception e)
-		{
-			throw new EdenSerializerException(e, "Packet Deserialize Fail");
-		}
+		var serializedPacketWithoutLength = new byte[packetLength];
+		memoryStream.Read(serializedPacketWithoutLength);
+		return Deserialize(serializedPacketWithoutLength, packetLength);
 	}
 	
 	
