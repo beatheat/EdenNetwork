@@ -40,57 +40,59 @@ internal class EdenServerDispatcher
 			foreach (var methodInfo in methodInfos)
 			{
 				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
-				var attributes = methodInfo.GetCustomAttributes();
-				foreach (var attribute in attributes)
+				Attribute? attribute;
+				try
 				{
-					var attributeType = attribute.GetType();
-					if (attributeType == typeof(EdenReceiveAttribute))
-					{
+					attribute = methodInfo.GetCustomAttribute(typeof(EdenAttribute));
+				}
+				catch (Exception e)
+				{
+					throw new EdenDispatcherException($"Cannot Get Eden Attribute - Class Name :{endpointTypeInfo.Name} Method Name : {methodInfo.Name}\n{e.Message}");
+				}
+				if(attribute == null)
+					continue;
+				var attributeType = attribute.GetType();
+				if (attributeType == typeof(EdenReceiveAttribute))
+				{
+					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
 						
-						endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
+					var receiveAttribute = (EdenReceiveAttribute)attribute;
+					receiveAttribute.apiName ??= methodInfo.Name;
 						
-						var receiveAttribute = (EdenReceiveAttribute)attribute;
-						receiveAttribute.apiName ??= methodInfo.Name;
+					if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
+					{
+						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+					}
+				}
+				else if (attributeType == typeof(EdenResponseAttribute))
+				{
+					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
 						
-						if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
-						{
-							throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
-						}
-						break;
-					}
-					else if (attributeType == typeof(EdenResponseAttribute))
-					{
-						endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
+					var responseAttribute = (EdenResponseAttribute)attribute;
+					responseAttribute.apiName ??= methodInfo.Name;
 						
-						var responseAttribute = (EdenResponseAttribute)attribute;
-						responseAttribute.apiName ??= methodInfo.Name;
-						
-						if (_responseEndpoints.TryAdd(responseAttribute.apiName, endpoint) == false)
-						{
-							throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
-						}
-						break;
-					}
-					else if (attributeType == typeof(EdenClientConnectAttribute))
+					if (_responseEndpoints.TryAdd(responseAttribute.apiName, endpoint) == false)
 					{
-						ValidateClientConnectMethod(methodInfo);
-						_connectEndpoints.Add(endpoint);
-						break;
+						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
 					}
-					else if (attributeType == typeof(EdenClientDisconnectAttribute))
-					{
-						ValidateClientDisconnectMethod(methodInfo);
-						_disconnectEndpoints.Add(endpoint);
-						break;
-					}
-					else if (attributeType == typeof(EdenNatRelayAttribute))
-					{
-						if (_natRelayEndpoint != null)
-							throw new EdenDispatcherException($"NAT Relay Method Could Exist Only One - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
-						ValidateNatRelayMethod(methodInfo);
-						_natRelayEndpoint = endpoint;
-						break;
-					}
+				}
+				else if (attributeType == typeof(EdenClientConnectAttribute))
+				{
+
+					ValidateClientConnectMethod(methodInfo);
+					_connectEndpoints.Add(endpoint);
+				}
+				else if (attributeType == typeof(EdenClientDisconnectAttribute))
+				{
+					ValidateClientDisconnectMethod(methodInfo);
+					_disconnectEndpoints.Add(endpoint);
+				}
+				else if (attributeType == typeof(EdenNatRelayAttribute))
+				{
+					if (_natRelayEndpoint != null)
+						throw new EdenDispatcherException($"NAT Relay Method Could Exist Only One - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
+					ValidateNatRelayMethod(methodInfo);
+					_natRelayEndpoint = endpoint;
 				}
 				
 			}
@@ -110,24 +112,45 @@ internal class EdenServerDispatcher
 			var methodInfos = endpointTypeInfo.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 			foreach (var methodInfo in methodInfos)
 			{
-				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
+				Attribute? attribute;
+				try
 				{
-					_receiveEndpoints.Remove(methodInfo.Name);
+					attribute = methodInfo.GetCustomAttribute(typeof(EdenAttribute));
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenResponseAttribute)) != null)
+				catch (Exception e)
 				{
-					_responseEndpoints.Remove(methodInfo.Name);
+					throw new EdenDispatcherException($"Cannot Get Eden Attribute - Class Name :{endpointTypeInfo.Name} Method Name : {methodInfo.Name}\n{e.Message}");
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenClientConnectAttribute)) != null)
+
+				if (attribute == null)
+					continue;
+
+				var attributeType = attribute.GetType();
+				if (attributeType == typeof(EdenReceiveAttribute))
+				{
+					var receiveAttribute = (EdenReceiveAttribute) attribute;
+					receiveAttribute.apiName ??= methodInfo.Name;
+					_receiveEndpoints.Remove(receiveAttribute.apiName);
+				}
+				else if (attributeType == typeof(EdenResponseAttribute))
+				{
+					var receiveAttribute = (EdenResponseAttribute) attribute;
+					receiveAttribute.apiName ??= methodInfo.Name;
+					_responseEndpoints.Remove(receiveAttribute.apiName);
+				}
+				else if (attributeType == typeof(EdenClientConnectAttribute))
 				{
 					var connectEndpoint = _connectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (connectEndpoint != null) _connectEndpoints.Remove(connectEndpoint);
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenClientDisconnectAttribute)) != null)
+				else if (attributeType == typeof(EdenClientDisconnectAttribute))
 				{
 					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (disconnectEndpoint != null) _connectEndpoints.Remove(disconnectEndpoint);
-					
+				}
+				else if (attributeType == typeof(EdenNatRelayAttribute))
+				{
+					_natRelayEndpoint = null;
 				}
 			}
 		}

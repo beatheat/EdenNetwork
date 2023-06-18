@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Reflection;
 using EdenNetwork.Dispatcher;
 using EdenNetwork.EdenException;
 using EdenNetwork.Log;
@@ -189,15 +188,14 @@ public class EdenUdpClient : IEdenNetClient
 		{
 			_serverId = new PeerId(targetEndPoint);
 			_netManager.Connect(targetEndPoint, "");
-			connectionResponded = true;
 		}
 
 		void PeerConnect(NetPeer peer)
 		{
-			connectionResponded = true;
 			connectionState = ConnectionState.Ok;
 			_peer = peer;
 			_logger?.LogConnect(new PeerId(peer.EndPoint));
+			connectionResponded = true;
 		}
 
 		void PeerDisconnect(NetPeer peer, DisconnectInfo info)

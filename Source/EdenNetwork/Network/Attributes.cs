@@ -1,8 +1,13 @@
 ﻿namespace EdenNetwork;
 
 
+public class EdenAttribute : Attribute
+{
+	
+}
+
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenReceiveAttribute : Attribute
+public class EdenReceiveAttribute : EdenAttribute
 {
 	public string? apiName;
 
@@ -18,7 +23,7 @@ public class EdenReceiveAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenResponseAttribute : Attribute
+public class EdenResponseAttribute : EdenAttribute
 {
 	public string? apiName;
 	public EdenResponseAttribute()
@@ -33,25 +38,25 @@ public class EdenResponseAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenClientConnectAttribute : Attribute
+public class EdenClientConnectAttribute : EdenAttribute
 {
 	
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenClientDisconnectAttribute : Attribute
+public class EdenClientDisconnectAttribute : EdenAttribute
 {
 	
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenDisconnectAttribute : Attribute
+public class EdenDisconnectAttribute : EdenAttribute
 {
 	
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public class EdenNatRelayAttribute : Attribute
+public class EdenNatRelayAttribute : EdenAttribute
 {
 	
 }

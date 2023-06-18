@@ -41,19 +41,40 @@ internal class EdenClientDispatcher
 			foreach (var methodInfo in methodInfos)
 			{
 				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
-				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
+				
+				Attribute? attribute;
+				try
+				{
+					attribute = methodInfo.GetCustomAttribute(typeof(EdenAttribute));
+				}
+				catch (Exception e)
+				{
+					throw new EdenDispatcherException($"Cannot Get Eden Attribute - Class Name :{endpointTypeInfo.Name} Method Name : {methodInfo.Name}\n{e.Message}");
+				}
+				
+				if(attribute == null) continue;
+
+				var attributeType = attribute.GetType();
+				
+				if (attributeType == typeof(EdenReceiveAttribute))
 				{
 					endpoint.ArgumentType = ValidateReceiveMethod(methodInfo);
-					if (_receiveEndpoints.TryAdd(methodInfo.Name, endpoint) == false)
+					var receiveAttribute = (EdenReceiveAttribute) attribute;
+					receiveAttribute.apiName ??= methodInfo.Name;
+
+					if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
 					}
+
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenDisconnectAttribute)) != null)
+				else if (attributeType == typeof(EdenDisconnectAttribute))
 				{
 					ValidateDisconnectMethod(methodInfo);
 					_disconnectEndpoints.Add(endpoint);
 				}
+
+
 			}
 		}
 	}
@@ -68,18 +89,33 @@ internal class EdenClientDispatcher
 				throw new EdenDispatcherException($"Endpoint Is Not a Class - Class Name : {endpointTypeInfo.Name}");
 			}
 			
+			
 			var methodInfos = endpointTypeInfo.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 			foreach (var methodInfo in methodInfos)
 			{
-				if (methodInfo.GetCustomAttribute(typeof(EdenReceiveAttribute)) != null)
+				Attribute? attribute;
+				try
 				{
-					_receiveEndpoints.Remove(methodInfo.Name);
+					attribute = methodInfo.GetCustomAttribute(typeof(EdenAttribute));
 				}
-				else if (methodInfo.GetCustomAttribute(typeof(EdenDisconnectAttribute)) != null)
+				catch (Exception e)
+				{
+					throw new EdenDispatcherException($"Cannot Get Eden Attribute - Class Name :{endpointTypeInfo.Name} Method Name : {methodInfo.Name}\n{e.Message}");
+				}
+
+				if (attribute == null) continue;
+				
+				var attributeType = attribute.GetType();
+				if (attributeType == typeof(EdenReceiveAttribute))
+				{
+					var receiveAttribute = (EdenReceiveAttribute) attribute;
+					receiveAttribute.apiName ??= methodInfo.Name;
+					_receiveEndpoints.Remove(receiveAttribute.apiName);
+				}
+				else if (attributeType == typeof(EdenDisconnectAttribute))
 				{
 					var disconnectEndpoint = _disconnectEndpoints.Find(endpoint => endpoint.Owner == endpointObject);
 					if (disconnectEndpoint != null) _disconnectEndpoints.Remove(disconnectEndpoint);
-					
 				}
 			}
 		}

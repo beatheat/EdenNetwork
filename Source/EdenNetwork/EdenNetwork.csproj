@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>3.0.8</Version>
+    <Version>3.0.10</Version>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Authors>beatheat</Authors>
@@ -14,10 +14,9 @@
     <RepositoryUrl>https://github.com/beatheat/EdenNetwork</RepositoryUrl>
     <PackageTags>TCP, UDP, socket</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <FileVersion>1.0.0.0</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <PackageReleaseNotes>feat : show serailize error log </PackageReleaseNotes>
+    <PackageReleaseNotes>fix: eden attribute bugs</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
