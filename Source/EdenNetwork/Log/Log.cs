@@ -1,5 +1,7 @@
 ﻿namespace EdenNetwork.Log;
 
+#pragma warning disable CS8618
+
 public enum LogLevel
 {
 	Information, Error

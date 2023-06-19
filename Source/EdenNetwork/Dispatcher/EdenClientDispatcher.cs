@@ -61,6 +61,9 @@ internal class EdenClientDispatcher
 					endpoint.ArgumentType = ValidateReceiveMethod(methodInfo);
 					var receiveAttribute = (EdenReceiveAttribute) attribute;
 					receiveAttribute.apiName ??= methodInfo.Name;
+					
+					if(endpoint.ArgumentType != null)
+						endpoint.DataDeserializer = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
 
 					if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
 					{
@@ -131,8 +134,7 @@ internal class EdenClientDispatcher
 		{
 			if (endpoint.ArgumentType != null)
 			{
-				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data});
+				var packetData = endpoint.DataDeserializer.Invoke(_serializer, new[] {packet.Data}); 
 				endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
 			}
 			else

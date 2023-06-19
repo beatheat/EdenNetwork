@@ -55,10 +55,12 @@ internal class EdenServerDispatcher
 				if (attributeType == typeof(EdenReceiveAttribute))
 				{
 					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
-						
 					var receiveAttribute = (EdenReceiveAttribute)attribute;
 					receiveAttribute.apiName ??= methodInfo.Name;
-						
+					
+					if(endpoint.ArgumentType != null)	
+						endpoint.DataDeserializer = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
+					
 					if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -67,10 +69,12 @@ internal class EdenServerDispatcher
 				else if (attributeType == typeof(EdenResponseAttribute))
 				{
 					endpoint.ArgumentType = ValidateReceiveResponseMethod(methodInfo);
-						
 					var responseAttribute = (EdenResponseAttribute)attribute;
 					responseAttribute.apiName ??= methodInfo.Name;
-						
+					
+					if(endpoint.ArgumentType != null)
+						endpoint.DataDeserializer = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
+
 					if (_responseEndpoints.TryAdd(responseAttribute.apiName, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -99,6 +103,7 @@ internal class EdenServerDispatcher
 		}
 	}
 
+	
 	public void RemoveEndpoints(params object[] endpointObjects)
 	{
 		foreach (var endpointObject in endpointObjects)
@@ -165,8 +170,7 @@ internal class EdenServerDispatcher
 		{
 			if (endpoint.ArgumentType != null)
 			{
-				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				var packetData = endpoint.DataDeserializer.Invoke(_serializer, new[] {packet.Data})!;
 				endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 			}
 			else
@@ -191,8 +195,7 @@ internal class EdenServerDispatcher
 		{
 			if (endpoint.ArgumentType != null)
 			{
-				var dataSerializeMethod = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-				var packetData = dataSerializeMethod.Invoke(_serializer, new[] {packet.Data})!;
+				var packetData = endpoint.DataDeserializer.Invoke(_serializer, new[] {packet.Data})!;
 				responseData = endpoint.Logic.Invoke(endpoint.Owner, new[] {peerId, packetData});
 			}
 			else

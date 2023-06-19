@@ -1,5 +1,7 @@
 ﻿namespace EdenNetwork.Packet;
 
+#pragma warning disable CS8618
+
 public enum EdenPacketType : byte
 {
     Send, Request, Response
