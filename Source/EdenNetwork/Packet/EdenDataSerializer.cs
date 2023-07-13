@@ -31,6 +31,5 @@ internal class EdenDataSerializer : IEdenDataSerializer
 		{
 			throw new EdenSerializerException(e, $"Data Deserialization Fail({Encoding.Default.GetString(packetSerialized)})\n" + e.Message);
 		}
-
 	}
 }

@@ -1,4 +1,5 @@
-﻿using EdenNetwork.Packet;
+﻿
+using EdenNetwork.Packet;
 
 namespace EdenNetwork.EdenException;
 

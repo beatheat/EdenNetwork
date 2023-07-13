@@ -11,18 +11,17 @@ internal class EdenClientDispatcher
 		public bool Received { get; set; }
 		public byte[]? RawData { get; set; }
 	}
-	
-	
-	private readonly Dictionary<string, Endpoint> _receiveEndpoints;
+
+	private readonly Dictionary<string, ClientReceiveEndpoint> _receiveEndpoints;
 	private readonly Dictionary<string, ResponseData> _responseData;
-	private readonly List<Endpoint> _disconnectEndpoints;
+	private readonly List<ServerDisconnectEndpoint> _disconnectEndpoints;
 	private readonly EdenPacketSerializer _serializer;
 
 	public EdenClientDispatcher(EdenPacketSerializer serializer)
 	{
-		_receiveEndpoints = new Dictionary<string, Endpoint>();
+		_receiveEndpoints = new Dictionary<string, ClientReceiveEndpoint>();
 		_responseData = new Dictionary<string, ResponseData>();
-		_disconnectEndpoints = new List<Endpoint>();
+		_disconnectEndpoints = new List<ServerDisconnectEndpoint>();
 		
 		_serializer = serializer;
 	}
@@ -40,7 +39,6 @@ internal class EdenClientDispatcher
 			var methodInfos = endpointTypeInfo.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 			foreach (var methodInfo in methodInfos)
 			{
-				var endpoint = new Endpoint {Owner = endpointObject, Logic = methodInfo};
 				
 				Attribute? attribute;
 				try
@@ -58,13 +56,15 @@ internal class EdenClientDispatcher
 				
 				if (attributeType == typeof(EdenReceiveAttribute))
 				{
-					endpoint.ArgumentType = ValidateReceiveMethod(methodInfo);
+					var argumentType = ValidateReceiveMethod(methodInfo);
+					var endpoint = new ClientReceiveEndpoint {Owner = endpointObject, Logic = DispatchInvoker.GetClientEndpointLogicInvoker(endpointObject, methodInfo)};
+					if (argumentType != null)
+						endpoint.DataDeserializer = DispatchInvoker.GetDeserializeDataInvoker(_serializer, argumentType);
+					
 					var receiveAttribute = (EdenReceiveAttribute) attribute;
 					receiveAttribute.apiName ??= methodInfo.Name;
 					
-					if(endpoint.ArgumentType != null)
-						endpoint.DataDeserializer = _serializer.GetType().GetMethod(nameof(EdenPacketSerializer.DeserializeData))!.MakeGenericMethod(endpoint.ArgumentType);
-
+			
 					if (_receiveEndpoints.TryAdd(receiveAttribute.apiName, endpoint) == false)
 					{
 						throw new EdenDispatcherException($"Same Name of Endpoint Logic Method Exist - Class Name : {endpointTypeInfo.Name} Method Name : {methodInfo.Name}");
@@ -74,6 +74,7 @@ internal class EdenClientDispatcher
 				else if (attributeType == typeof(EdenDisconnectAttribute))
 				{
 					ValidateDisconnectMethod(methodInfo);
+					var endpoint = new ServerDisconnectEndpoint {Owner = endpointObject, Logic = methodInfo.CreateDelegate<ServerDisconnectLogicInvoker>(endpointObject)};
 					_disconnectEndpoints.Add(endpoint);
 				}
 
@@ -132,19 +133,12 @@ internal class EdenClientDispatcher
 			return;
 		try
 		{
-			if (endpoint.ArgumentType != null)
-			{
-				var packetData = endpoint.DataDeserializer.Invoke(_serializer, new[] {packet.Data}); 
-				endpoint.Logic.Invoke(endpoint.Owner, new[] {packetData});
-			}
-			else
-			{
-				endpoint.Logic.Invoke(endpoint.Owner, null);
-			}
+			var packetData = endpoint.DataDeserializer?.Invoke((byte[]) packet.Data!);
+			endpoint.Logic(packetData);
 		}
 		catch (Exception e)
 		{
-			throw new EdenDispatcherException("Dispatch Error at " + endpoint.Logic.Name + "\n" + e.InnerException?.Message);
+			throw new EdenDispatcherException("Dispatch Error at " + endpoint.Name + "\n" + e.InnerException?.Message);
 		}
 	}
 
@@ -167,7 +161,6 @@ internal class EdenClientDispatcher
 
 		ResponseData responseData = new ResponseData {Received = false, RawData = null};
 		_responseData.Add(tag, responseData);
-		var time = DateTime.Now;
 
 		SpinWait.SpinUntil(() => responseData.Received, timeout);
 		
@@ -189,7 +182,7 @@ internal class EdenClientDispatcher
 	{
 		foreach (var endpoint in _disconnectEndpoints)
 		{
-			endpoint.Logic.Invoke(endpoint.Owner, new object?[] {reason});
+			endpoint.Logic(reason);
 		}
 	}
 	
